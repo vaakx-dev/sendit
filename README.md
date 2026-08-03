@@ -2,6 +2,8 @@
 
 Temporary file sharing from a Windows PC. Files stream from the sender's browser while the recipient downloads. The link dies with the process.
 
+The browser interface is built with [VRUI](https://github.com/vaakx-dev/vrui), another one of my projects.
+
 ![SendIt demo: select files, create a link, recipient downloads](demo.gif)
 
 ## Requirements
