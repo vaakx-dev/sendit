@@ -1,0 +1,41 @@
+{
+  "name": "sendit-local",
+  "version": "0.1.0",
+  "description": "Temporary file sharing from a Windows PC",
+  "type": "module",
+  "bin": {
+    "sendit": "dist/src/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsx scripts/clean.ts && tsc && tsc -p tsconfig.client.json && tsx scripts/build_assets.ts",
+    "dev": "npm run build && node dist/src/cli.js --local",
+    "start": "node dist/src/cli.js",
+    "test": "npm run build && tsx --test src/server.test.ts"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "os": [
+    "win32"
+  ],
+  "dependencies": {
+    "@vaakx-dev/vrui": "git+https://github.com/vaakx-dev/vrui.git#5b5b23b5ae3cb1981866024a924bb68ea0466ba2",
+    "archiver": "8.0.0",
+    "lucide": "1.28.0",
+    "ws": "8.21.1"
+  },
+  "devDependencies": {
+    "@types/archiver": "8.0.0",
+    "@types/node": "26.1.2",
+    "@types/ws": "8.18.1",
+    "esbuild": "0.28.1",
+    "tsx": "4.20.6",
+    "typescript": "7.0.2"
+  },
+  "license": "MIT"
+}
