@@ -15,7 +15,17 @@ The first public run downloads `cloudflared` into `%LOCALAPPDATA%\sendit\bin`.
 
 ## Install
 
+Copy and paste this into PowerShell:
+
 ```powershell
+irm https://raw.githubusercontent.com/vaakx-dev/sendit/main/install.ps1 | iex
+```
+
+Or install manually:
+
+```powershell
+git clone https://github.com/vaakx-dev/sendit.git
+cd sendit
 npm install
 npm run build
 npm install --global .
@@ -32,8 +42,8 @@ Select files or a folder on the control page, create the link, and keep the wind
 ## Uninstall
 
 ```powershell
-sendit --uninstall                    # removes the cloudflared helper and SendIt data
-npm uninstall --global sendit-local   # removes the sendit command
+sendit --uninstall              # removes the cloudflared helper and SendIt data
+npm uninstall --global sendit   # removes the sendit command
 ```
 
 ## Development
