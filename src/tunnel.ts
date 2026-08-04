@@ -79,7 +79,7 @@ async function resolve_cloudflared(on_status?: (message: string) => void): Promi
   const temporary = `${executable}.${process.pid}.download`;
   try {
     const response = await fetch(DOWNLOAD_URL, {
-      headers: { "User-Agent": "sendit-local" },
+      headers: { "User-Agent": "sendit" },
       redirect: "follow",
     });
     if (!response.ok || !response.body) {

@@ -96,7 +96,7 @@ async function uninstall(): Promise<void> {
   const directory = join(base, "sendit");
   await rm(directory, { recursive: true, force: true });
   console.log(`Removed ${directory} (cloudflared helper and SendIt data).`);
-  console.log("To remove the sendit command itself, run: npm uninstall --global sendit-local");
+  console.log("To remove the sendit command itself, run: npm uninstall --global sendit");
 }
 
 function open_browser(url: string): void {

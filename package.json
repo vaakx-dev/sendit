@@ -1,5 +1,5 @@
 {
-  "name": "sendit-local",
+  "name": "sendit",
   "version": "0.1.0",
   "description": "Temporary file sharing from a Windows PC",
   "type": "module",
