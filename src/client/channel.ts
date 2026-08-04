@@ -102,10 +102,16 @@ export class SenderChannel {
       while (true) {
         const result = await reader.read();
         if (result.done || transfer.cancelled) break;
-        await this.send_chunk(result.value);
-        if (transfer.cancelled) break;
-        transfer.sent += result.value.byteLength;
-        this.notify({ type: "progress", file: selected.file, sent: transfer.sent });
+        const chunk = result.value;
+        // Slice large reads into fixed-size pieces so a single WS frame
+        // never exceeds server limits and backpressure stays fine-grained.
+        const CHUNK_SIZE = 256 * 1024;
+        for (let offset = 0; offset < chunk.byteLength && !transfer.cancelled; offset += CHUNK_SIZE) {
+          const slice = chunk.subarray(offset, offset + CHUNK_SIZE);
+          await this.send_chunk(slice);
+          transfer.sent += slice.byteLength;
+          this.notify({ type: "progress", file: selected.file, sent: transfer.sent });
+        }
       }
       if (!transfer.cancelled) this.send({ type: "transfer_end", transfer_id });
     } catch (error) {

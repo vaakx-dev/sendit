@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomBytes } from "node:crypto";
-import { WebSocketServer, type WebSocket } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 import { Downloads } from "./downloads.js";
 import type { AppEvent } from "./events.js";
 import { send_json, send_text } from "./http.js";
@@ -27,7 +27,7 @@ export async function start_sendit_server(options: SenditServerOptions = {}): Pr
   const admin_key = randomBytes(24).toString("base64url");
   const sender = new SenderConnection();
   const downloads = new Downloads(sender, (event) => options.on_event?.(event));
-  const sockets = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
+  const sockets = new WebSocketServer({ noServer: true });
   let share: Share | null = null;
   let public_url = options.public_url ?? "";
 
@@ -69,6 +69,15 @@ export async function start_sendit_server(options: SenditServerOptions = {}): Pr
 
   function connect_sender(socket: WebSocket): void {
     sender.connect(socket);
+    const ping_interval = setInterval(() => {
+      if (socket.readyState === WebSocket.OPEN) socket.ping();
+    }, 30_000);
+
+    const cleanup = () => {
+      clearInterval(ping_interval);
+      sender.disconnect_socket(socket);
+    };
+
     socket.on("message", (data, binary) => {
       if (binary) {
         sender.handle_chunk(Buffer.from(data as Buffer));
@@ -87,8 +96,8 @@ export async function start_sendit_server(options: SenditServerOptions = {}): Pr
           sender.handle_message(message);
       }
     });
-    socket.on("close", () => sender.disconnect_socket(socket));
-    socket.on("error", () => sender.disconnect_socket(socket));
+    socket.on("close", cleanup);
+    socket.on("error", cleanup);
     sender.send({ type: "ready" });
   }
 
