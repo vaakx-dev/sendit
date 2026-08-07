@@ -49,8 +49,16 @@ npm uninstall --global sendit   # removes the sendit command
 ## Development
 
 ```powershell
-npm run dev   # build and run locally, no public tunnel
-npm test      # build and run the checks
+npm run dev          # build and run locally, no public tunnel
+npm test             # quick correctness checks
+npm run test:stress  # 2+ GiB and 100,000-file checks
+npm run test:speed   # local upload/download throughput
+```
+
+The speed test transfers 1 GiB by default without storing it. To choose another size:
+
+```powershell
+$env:SENDIT_SPEED_MIB=4096; npm run test:speed
 ```
 
 ## How it works

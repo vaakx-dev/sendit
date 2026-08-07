@@ -15,7 +15,9 @@
     "build": "tsx scripts/clean.ts && tsc && tsc -p tsconfig.client.json && tsx scripts/build_assets.ts",
     "dev": "npm run build && node dist/src/cli.js --local",
     "start": "node dist/src/cli.js",
-    "test": "npm run build && tsx --test src/server.test.ts"
+    "test": "npm run build && tsx --test src/server.test.ts src/client/selection.test.ts",
+    "test:stress": "npm run build && tsx --test --test-concurrency=1 src/client/selection.stress.test.ts src/server.stress.test.ts",
+    "test:speed": "npm run build && tsx scripts/speed_test.ts"
   },
   "engines": {
     "node": ">=22"
@@ -26,6 +28,7 @@
   "dependencies": {
     "@vaakx-dev/vrui": "git+https://github.com/vaakx-dev/vrui.git#5b5b23b5ae3cb1981866024a924bb68ea0466ba2",
     "archiver": "8.0.0",
+    "ignore": "^7.0.5",
     "lucide": "1.28.0",
     "ws": "8.21.1"
   },

@@ -34,7 +34,7 @@ export class SenderChannel {
   }
 
   publish(): void {
-    const records = this.selection.all();
+    const records = this.selection.included();
     this.send({
       type: "publish",
       label: this.selection.label(),

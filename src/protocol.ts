@@ -71,7 +71,7 @@ export function parse_sender_message(data: string): SenderMessage | null {
         message.label.length > 200 ||
         !Array.isArray(message.items) ||
         message.items.length === 0 ||
-        message.items.length > 10_000 ||
+        message.items.length > 250_000 ||
         !message.items.every(is_shared_item)
       ) {
         return null;

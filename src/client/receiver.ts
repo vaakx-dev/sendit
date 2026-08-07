@@ -15,8 +15,9 @@ import {
   span,
   strong,
 } from "@vaakx-dev/vrui";
-import { Download, File, PackageOpen } from "lucide";
+import { Download, PackageOpen } from "lucide";
 import { format_bytes } from "./common.js";
+import { file_type_icon } from "./file_icons.js";
 import { topbar } from "./ui.js";
 
 interface ShareItem {
@@ -86,26 +87,45 @@ function page(value: View): HTMLElement {
 }
 
 function share_page(share: Share): HTMLElement {
+  const multiple = share.items.length > 1;
   return section(
-    { class: "panel" },
+    { class: "panel receiver-panel" },
     div(
-      { class: "panel-heading" },
-      h2(share.label),
-      span(
-        { class: "meta" },
-        `${share.items.length} ${share.items.length === 1 ? "file" : "files"} · ${format_bytes(share.total_size)}`,
+      { class: "receiver-summary" },
+      div(
+        p({ class: "eyebrow" }, "Ready to download"),
+        h2(share.label),
+        p(
+          { class: "meta" },
+          `${share.items.length} ${share.items.length === 1 ? "file" : "files"} · ${format_bytes(share.total_size)}`,
+        ),
       ),
+      multiple
+        ? a(
+          { class: "button primary receiver-download", href: `/s/${encodeURIComponent(token)}/archive` },
+          icon(PackageOpen, 18),
+          "Download ZIP",
+        )
+        : a(
+          { class: "button primary receiver-download", href: file_url(share.items[0] as ShareItem) },
+          icon(Download, 18),
+          "Download file",
+        ),
     ),
-    div({ class: "file-list receiver-list" }, share.items.map(file_row)),
-    share.items.length > 1
-      ? a(
-        { class: "button primary wide download-all", href: `/s/${encodeURIComponent(token)}/archive` },
-        icon(PackageOpen, 18),
-        "Download everything as ZIP",
-      )
+    div({ class: "file-list receiver-list" }, visible_items(share.items).map(file_row)),
+    share.items.length > 100
+      ? p({ class: "hint list-note" }, `Showing 100 of ${share.items.length} files. The ZIP contains everything.`)
       : null,
     p({ class: "hint" }, "The sender must keep SendIt open until your download completes."),
   );
+}
+
+function visible_items(items: ShareItem[]): ShareItem[] {
+  return items.slice(0, 100);
+}
+
+function file_url(item: ShareItem): string {
+  return `/s/${encodeURIComponent(token)}/files/${encodeURIComponent(item.id)}`;
 }
 
 function file_row(item: ShareItem): HTMLElement {
@@ -113,17 +133,13 @@ function file_row(item: ShareItem): HTMLElement {
     { class: "file-row" },
     div(
       { class: "file-details" },
-      span_icon(),
+      div({ class: "file-icon", "aria-hidden": "true" }, file_type_icon(item.relative_path, 18)),
       div(strong(item.relative_path), small(format_bytes(item.size))),
     ),
     a(
-      { href: `/s/${encodeURIComponent(token)}/files/${encodeURIComponent(item.id)}` },
+      { href: file_url(item) },
       icon(Download, 16),
       "Download",
     ),
   );
-}
-
-function span_icon(): HTMLElement {
-  return div({ class: "file-icon", "aria-hidden": "true" }, icon(File, 18));
 }
