@@ -37,6 +37,7 @@ interface DirectoryEntry extends LocalEntry {
 
 interface IgnoreFile {
   directory: string;
+  depth: number;
   rules: Ignore;
 }
 
@@ -145,14 +146,19 @@ export class Selection {
 
 async function load_ignore_files(records: Array<{ file: File; path: string }>): Promise<IgnoreFile[]> {
   const files = records.filter((record) => normalize_path(record.path).split("/").at(-1) === ".gitignore");
-  return await Promise.all(files.map(async (record) => {
+  const ignore_files = await Promise.all(files.map(async (record) => {
     const path = normalize_path(record.path);
     const slash = path.lastIndexOf("/");
+    const directory = slash < 0 ? "" : path.slice(0, slash);
     return {
-      directory: slash < 0 ? "" : path.slice(0, slash),
+      directory,
+      depth: directory ? directory.split("/").length : 0,
       rules: ignore().add(await record.file.text()),
     };
   }));
+  return ignore_files.sort((left, right) =>
+    left.depth - right.depth || left.directory.localeCompare(right.directory),
+  );
 }
 
 function is_ignored(path: string, files: IgnoreFile[]): boolean {

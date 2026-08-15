@@ -45,6 +45,21 @@ test("nested gitignore files apply relative to their directory", async () => {
   );
 });
 
+test("nested gitignore precedence does not depend on file enumeration order", async () => {
+  const root_ignore = file("project/.gitignore", "!sub/secret.txt\n");
+  const nested_ignore = file("project/sub/.gitignore", "secret.txt\n");
+  const secret = file("project/sub/secret.txt");
+
+  for (const files of [
+    [root_ignore, nested_ignore, secret],
+    [nested_ignore, root_ignore, secret],
+  ]) {
+    const selection = new Selection();
+    await selection.set_files(files);
+    assert.equal(selection.included().some((record) => record.path === "project/sub/secret.txt"), false);
+  }
+});
+
 test("folder entries summarize and toggle thousands of files", async () => {
   const selection = new Selection();
   const files = Array.from({ length: 5_000 }, (_, index) =>

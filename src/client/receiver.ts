@@ -18,32 +18,23 @@ import {
 import { Download, PackageOpen } from "lucide";
 import { format_bytes } from "./common.js";
 import { file_type_icon } from "./file_icons.js";
+import { parse_share_details, type SharedItem, type ShareDetails } from "../protocol.js";
 import { topbar } from "./ui.js";
-
-interface ShareItem {
-  id: string;
-  relative_path: string;
-  size: number;
-}
-
-interface Share {
-  label: string;
-  sender_online: boolean;
-  total_size: number;
-  items: ShareItem[];
-}
 
 type View =
   | { kind: "loading" }
-  | { kind: "ready"; share: Share }
+  | { kind: "ready"; share: ShareDetails }
   | { kind: "unavailable" };
 
 const token = decodeURIComponent(location.pathname.split("/")[2] ?? "");
 
-const request = resource<Share>(async (signal) => {
+const request = resource<ShareDetails>(async (signal) => {
   const response = await fetch(`/api/shares/${encodeURIComponent(token)}`, { signal: signal ?? null });
   if (!response.ok) throw new Error("Share unavailable");
-  return await response.json() as Share;
+  const value: unknown = await response.json();
+  const share = parse_share_details(value);
+  if (!share) throw new Error("Invalid share details");
+  return share;
 });
 
 const view = derive<View>(() => {
@@ -86,7 +77,7 @@ function page(value: View): HTMLElement {
   }
 }
 
-function share_page(share: Share): HTMLElement {
+function share_page(share: ShareDetails): HTMLElement {
   const multiple = share.items.length > 1;
   return section(
     { class: "panel receiver-panel" },
@@ -107,7 +98,7 @@ function share_page(share: Share): HTMLElement {
           "Download ZIP",
         )
         : a(
-          { class: "button primary receiver-download", href: file_url(share.items[0] as ShareItem) },
+          { class: "button primary receiver-download", href: file_url(share.items[0]) },
           icon(Download, 18),
           "Download file",
         ),
@@ -120,15 +111,15 @@ function share_page(share: Share): HTMLElement {
   );
 }
 
-function visible_items(items: ShareItem[]): ShareItem[] {
+function visible_items(items: SharedItem[]): SharedItem[] {
   return items.slice(0, 100);
 }
 
-function file_url(item: ShareItem): string {
+function file_url(item: SharedItem): string {
   return `/s/${encodeURIComponent(token)}/files/${encodeURIComponent(item.id)}`;
 }
 
-function file_row(item: ShareItem): HTMLElement {
+function file_row(item: SharedItem): HTMLElement {
   return div(
     { class: "file-row" },
     div(

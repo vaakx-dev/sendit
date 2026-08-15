@@ -11,7 +11,7 @@ The browser interface is built with [VRUI](https://github.com/vaakx-dev/vrui), a
 - Windows 10 or 11
 - Node.js 22 or newer
 
-The first public run downloads `cloudflared` into `%LOCALAPPDATA%\sendit\bin`.
+The first public run downloads `cloudflared` 2026.8.2 into `%LOCALAPPDATA%\sendit\bin`. SendIt verifies the release SHA-256 hash and executable version before use.
 
 ## Install
 
@@ -67,7 +67,7 @@ $env:SENDIT_SPEED_MIB=4096; npm run test:speed
 sender browser -> local SendIt process -> Cloudflare Quick Tunnel -> recipient browser
 ```
 
-Chunks stream one at a time with backpressure. Folder downloads are zipped as they stream, never staged on disk.
+Chunks stream one at a time with backpressure. Folder downloads are zipped as they stream, never staged on disk. SendIt cancels a transfer after 30 seconds without progress.
 
 ## Security
 

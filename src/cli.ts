@@ -49,7 +49,7 @@ async function main(): Promise<void> {
     console.log("");
 
     if (options.open) open_browser(server.admin_url);
-    await wait_for_shutdown();
+    await wait_for_shutdown(tunnel);
   } finally {
     console.log("\nStopping SendIt...");
     await tunnel?.stop();
@@ -108,11 +108,13 @@ function open_browser(url: string): void {
   child.unref();
 }
 
-function wait_for_shutdown(): Promise<void> {
-  return new Promise((resolve) => {
-    process.once("SIGINT", resolve);
-    process.once("SIGTERM", resolve);
+async function wait_for_shutdown(tunnel: Tunnel | null): Promise<void> {
+  const signal = new Promise<null>((resolve) => {
+    process.once("SIGINT", () => resolve(null));
+    process.once("SIGTERM", () => resolve(null));
   });
+  const closed = tunnel ? await Promise.race([signal, tunnel.closed]) : await signal;
+  if (closed?.type === "failed") throw closed.error;
 }
 
 function print_event(event: AppEvent, last_progress: number): number {
@@ -154,6 +156,6 @@ function format_bytes(value: number): string {
 }
 
 main().catch((error) => {
-  console.error(`SendIt could not start: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`SendIt could not continue: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
 });

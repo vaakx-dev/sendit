@@ -15,7 +15,7 @@
     "build": "tsx scripts/clean.ts && tsc && tsc -p tsconfig.client.json && tsx scripts/build_assets.ts",
     "dev": "npm run build && node dist/src/cli.js --local",
     "start": "node dist/src/cli.js",
-    "test": "npm run build && tsx --test src/server.test.ts src/client/selection.test.ts",
+    "test": "npm run build && tsx --test src/protocol.test.ts src/transfer.test.ts src/tunnel.test.ts src/installer.test.ts src/server.test.ts src/client/channel.test.ts src/client/selection.test.ts",
     "test:stress": "npm run build && tsx --test --test-concurrency=1 src/client/selection.stress.test.ts src/server.stress.test.ts",
     "test:speed": "npm run build && tsx scripts/speed_test.ts"
   },

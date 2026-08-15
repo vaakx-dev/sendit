@@ -1,19 +1,23 @@
 import { randomBytes } from "node:crypto";
-import type { PublishMessage, SharedItem } from "./protocol.js";
+import type { PublishMessage, SharedItems, ShareDetails } from "./protocol.js";
 
 export interface Share {
   token: string;
   label: string;
-  items: SharedItem[];
+  items: SharedItems;
   created_at: string;
 }
 
 export function create_share(message: PublishMessage): Share {
-  const items = message.items.map((item) => ({
+  const sanitized = message.items.map((item) => ({
     ...item,
     name: clean_name(item.name),
     relative_path: clean_path(item.relative_path),
   }));
+  const [first, ...rest] = sanitized;
+  if (!first) throw new Error("Select at least one file.");
+  const items: SharedItems = [first, ...rest];
+
   if (new Set(items.map((item) => item.id)).size !== items.length) {
     throw new Error("File identifiers must be unique.");
   }
@@ -29,7 +33,7 @@ export function create_share(message: PublishMessage): Share {
   };
 }
 
-export function share_details(share: Share, sender_online: boolean): object {
+export function share_details(share: Share, sender_online: boolean): ShareDetails {
   return {
     label: share.label,
     created_at: share.created_at,

@@ -166,9 +166,10 @@ function directory_list(records: SelectionEntry[]): HTMLElement {
   return div(
     {
       class: "file-browser",
-      on_mount: (node) => {
-        node.scrollTop = browser_scroll;
-        node.addEventListener("scroll", () => { browser_scroll = node.scrollTop; }, { passive: true });
+      on_mount: (node) => { node.scrollTop = browser_scroll; },
+      on_scroll: (event) => {
+        const node = event.currentTarget;
+        if (node instanceof HTMLDivElement) browser_scroll = node.scrollTop;
       },
     },
     records.map(entry_row),
