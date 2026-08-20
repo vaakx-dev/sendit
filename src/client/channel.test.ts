@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { File } from "node:buffer";
 import test from "node:test";
 import {
-  parse_sender_message,
+  parseSenderMessage,
+  serializeServerMessage,
   type SenderToServerMessage,
   type ServerToSenderMessage,
 } from "../protocol.js";
@@ -18,7 +19,7 @@ class FakeSocket extends EventTarget implements SenderChannelSocket {
   }
 
   receive(message: ServerToSenderMessage): void {
-    this.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(message) }));
+    this.dispatchEvent(new MessageEvent("message", { data: serializeServerMessage(message) }));
   }
 }
 
@@ -26,14 +27,14 @@ function messages(socket: FakeSocket): SenderToServerMessage[] {
   const parsed: SenderToServerMessage[] = [];
   for (const data of socket.sent) {
     if (typeof data !== "string") continue;
-    const message = parse_sender_message(data);
+    const message = parseSenderMessage(data);
     assert.ok(message);
     parsed.push(message);
   }
   return parsed;
 }
 
-async function wait_for(predicate: () => boolean): Promise<void> {
+async function waitFor(predicate: () => boolean): Promise<void> {
   const deadline = Date.now() + 1_000;
   while (!predicate()) {
     if (Date.now() >= deadline) throw new Error("Timed out waiting for sender channel state.");
@@ -43,7 +44,7 @@ async function wait_for(predicate: () => boolean): Promise<void> {
 
 test("accepts another transfer after the recipient cancels", async () => {
   const selection = new Selection();
-  await selection.set_files([new File(["hello"], "hello.txt", { type: "text/plain" })]);
+  await selection.setFiles([new File(["hello"], "hello.txt", { type: "text/plain" })]);
   const selected = selection.included()[0];
   assert.ok(selected);
 
@@ -51,16 +52,16 @@ test("accepts another transfer after the recipient cancels", async () => {
   const events: ChannelEvent[] = [];
   new SenderChannel("key", selection, (event) => events.push(event), socket);
 
-  socket.receive({ type: "transfer_request", transfer_id: "first", item_id: selected.id });
-  await wait_for(() => socket.sent.some((data) => data instanceof ArrayBuffer));
-  socket.receive({ type: "transfer_cancel", transfer_id: "first", message: "recipient left" });
-  socket.receive({ type: "transfer_request", transfer_id: "second", item_id: selected.id });
+  socket.receive({ type: "transfer_request", transferId: "first", itemId: selected.id });
+  await waitFor(() => socket.sent.some((data) => data instanceof ArrayBuffer));
+  socket.receive({ type: "transfer_cancel", transferId: "first", message: "recipient left" });
+  socket.receive({ type: "transfer_request", transferId: "second", itemId: selected.id });
 
-  await wait_for(() => messages(socket).some((message) =>
-    message.type === "transfer_begin" && message.transfer_id === "second",
+  await waitFor(() => messages(socket).some((message) =>
+    message.type === "transfer_begin" && message.transferId === "second",
   ));
   assert.equal(
-    messages(socket).some((message) => message.type === "transfer_error" && message.transfer_id === "second"),
+    messages(socket).some((message) => message.type === "transfer_error" && message.transferId === "second"),
     false,
   );
   assert.equal(events.some((event) => event.type === "error" && event.message === "recipient left"), true);

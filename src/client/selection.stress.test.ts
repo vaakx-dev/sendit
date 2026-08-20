@@ -18,18 +18,18 @@ test("selects and browses 100,000 files across 100,000 folders", { timeout: 120_
     file(`project/folder-${index % FOLDER_COUNT}/file-${index}.txt`),
   );
 
-  await selection.set_files(files);
+  await selection.setFiles(files);
   assert.equal(selection.all().length, FILE_COUNT);
   assert.equal(selection.included().length, FILE_COUNT);
   assert.equal(selection.root(), "project");
 
   const entries = selection.entries("project");
   assert.equal(entries.length, FOLDER_COUNT);
-  assert.equal(entries.reduce((total, entry) => total + entry.file_count, 0), FILE_COUNT);
+  assert.equal(entries.reduce((total, entry) => total + entry.fileCount, 0), FILE_COUNT);
 
   selection.select("project/folder-9999", false);
   const excluded = selection.entries("project").find((entry) => entry.name === "folder-9999");
-  assert.equal(excluded?.file_count, 1);
-  assert.equal(excluded?.selected_count, 0);
+  assert.equal(excluded?.fileCount, 1);
+  assert.equal(excluded?.selectedCount, 0);
   assert.equal(selection.included().length, FILE_COUNT - 1);
 });

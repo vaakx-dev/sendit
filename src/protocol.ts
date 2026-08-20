@@ -1,7 +1,7 @@
 export interface SharedItem {
   id: string;
   name: string;
-  relative_path: string;
+  relativePath: string;
   size: number;
   type: string;
 }
@@ -14,18 +14,18 @@ export interface PublishMessage {
 
 export interface TransferBeginMessage {
   type: "transfer_begin";
-  transfer_id: string;
+  transferId: string;
   size: number;
 }
 
 export interface TransferEndMessage {
   type: "transfer_end";
-  transfer_id: string;
+  transferId: string;
 }
 
 export interface TransferErrorMessage {
   type: "transfer_error";
-  transfer_id: string;
+  transferId: string;
   message: string;
 }
 
@@ -39,40 +39,40 @@ export type SenderToServerMessage = PublishMessage | SenderTransferMessage;
 export type ServerToSenderMessage =
   | { type: "ready" }
   | { type: "published"; url: string }
-  | { type: "transfer_request"; transfer_id: string; item_id: string }
-  | { type: "chunk_ack"; transfer_id: string }
-  | { type: "transfer_cancel"; transfer_id: string; message: string }
-  | { type: "transfer_complete"; transfer_id: string }
+  | { type: "transfer_request"; transferId: string; itemId: string }
+  | { type: "chunk_ack"; transferId: string }
+  | { type: "transfer_cancel"; transferId: string; message: string }
+  | { type: "transfer_complete"; transferId: string }
   | { type: "error"; message: string };
 
 export type SharedItems = [SharedItem, ...SharedItem[]];
 
 export interface ShareDetails {
   label: string;
-  created_at: string;
-  sender_online: boolean;
-  total_size: number;
+  createdAt: string;
+  senderOnline: boolean;
+  totalSize: number;
   items: SharedItems;
 }
 
-export function is_shared_item(value: unknown): value is SharedItem {
-  if (!is_record(value)) return false;
+export function isSharedItem(value: unknown): value is SharedItem {
+  if (!isRecord(value)) return false;
   return (
-    is_nonempty_string(value.id) &&
-    is_nonempty_string(value.name) &&
-    is_nonempty_string(value.relative_path) &&
-    is_nonnegative_safe_integer(value.size) &&
+    isNonemptyString(value.id) &&
+    isNonemptyString(value.name) &&
+    isNonemptyString(value.relativePath) &&
+    isNonnegativeSafeInteger(value.size) &&
     typeof value.type === "string"
   );
 }
 
-export function parse_sender_message(data: string): SenderToServerMessage | null {
-  const message = parse_json_record(data);
+export function parseSenderMessage(data: string): SenderToServerMessage | null {
+  const message = parseJsonRecord(data);
   if (!message) return null;
 
   switch (message.type) {
     case "publish": {
-      const items = parse_shared_items(message.items);
+      const items = parseWireSharedItems(message.items);
       if (
         typeof message.label !== "string" ||
         message.label.length === 0 ||
@@ -86,46 +86,46 @@ export function parse_sender_message(data: string): SenderToServerMessage | null
       return { type: "publish", label: message.label, items };
     }
     case "transfer_begin":
-      return is_nonempty_string(message.transfer_id) && is_nonnegative_safe_integer(message.size)
-        ? { type: "transfer_begin", transfer_id: message.transfer_id, size: message.size }
+      return isNonemptyString(message.transfer_id) && isNonnegativeSafeInteger(message.size)
+        ? { type: "transfer_begin", transferId: message.transfer_id, size: message.size }
         : null;
     case "transfer_end":
-      return is_nonempty_string(message.transfer_id)
-        ? { type: "transfer_end", transfer_id: message.transfer_id }
+      return isNonemptyString(message.transfer_id)
+        ? { type: "transfer_end", transferId: message.transfer_id }
         : null;
     case "transfer_error":
-      return is_nonempty_string(message.transfer_id) && typeof message.message === "string"
-        ? { type: "transfer_error", transfer_id: message.transfer_id, message: message.message }
+      return isNonemptyString(message.transfer_id) && typeof message.message === "string"
+        ? { type: "transfer_error", transferId: message.transfer_id, message: message.message }
         : null;
     default:
       return null;
   }
 }
 
-export function parse_server_message(data: string): ServerToSenderMessage | null {
-  const message = parse_json_record(data);
+export function parseServerMessage(data: string): ServerToSenderMessage | null {
+  const message = parseJsonRecord(data);
   if (!message) return null;
 
   switch (message.type) {
     case "ready":
       return { type: "ready" };
     case "published":
-      return is_nonempty_string(message.url) ? { type: "published", url: message.url } : null;
+      return isNonemptyString(message.url) ? { type: "published", url: message.url } : null;
     case "transfer_request":
-      return is_nonempty_string(message.transfer_id) && is_nonempty_string(message.item_id)
-        ? { type: "transfer_request", transfer_id: message.transfer_id, item_id: message.item_id }
+      return isNonemptyString(message.transfer_id) && isNonemptyString(message.item_id)
+        ? { type: "transfer_request", transferId: message.transfer_id, itemId: message.item_id }
         : null;
     case "chunk_ack":
-      return is_nonempty_string(message.transfer_id)
-        ? { type: "chunk_ack", transfer_id: message.transfer_id }
+      return isNonemptyString(message.transfer_id)
+        ? { type: "chunk_ack", transferId: message.transfer_id }
         : null;
     case "transfer_cancel":
-      return is_nonempty_string(message.transfer_id) && typeof message.message === "string"
-        ? { type: "transfer_cancel", transfer_id: message.transfer_id, message: message.message }
+      return isNonemptyString(message.transfer_id) && typeof message.message === "string"
+        ? { type: "transfer_cancel", transferId: message.transfer_id, message: message.message }
         : null;
     case "transfer_complete":
-      return is_nonempty_string(message.transfer_id)
-        ? { type: "transfer_complete", transfer_id: message.transfer_id }
+      return isNonemptyString(message.transfer_id)
+        ? { type: "transfer_complete", transferId: message.transfer_id }
         : null;
     case "error":
       return typeof message.message === "string" ? { type: "error", message: message.message } : null;
@@ -134,59 +134,128 @@ export function parse_server_message(data: string): ServerToSenderMessage | null
   }
 }
 
-export function parse_share_details(value: unknown): ShareDetails | null {
-  if (!is_record(value)) return null;
-  const items = parse_shared_items(value.items);
+export function parseShareDetails(value: unknown): ShareDetails | null {
+  if (!isRecord(value)) return null;
+  const items = parseSharedItems(value.items);
   const [first, ...rest] = items ?? [];
   if (
     typeof value.label !== "string" ||
-    typeof value.created_at !== "string" ||
-    typeof value.sender_online !== "boolean" ||
-    !is_nonnegative_safe_integer(value.total_size) ||
+    typeof value.createdAt !== "string" ||
+    typeof value.senderOnline !== "boolean" ||
+    !isNonnegativeSafeInteger(value.totalSize) ||
     !first
   ) {
     return null;
   }
   return {
     label: value.label,
-    created_at: value.created_at,
-    sender_online: value.sender_online,
-    total_size: value.total_size,
+    createdAt: value.createdAt,
+    senderOnline: value.senderOnline,
+    totalSize: value.totalSize,
     items: [first, ...rest],
   };
 }
 
-function parse_json_record(data: string): Record<string, unknown> | null {
+export function serializeSenderMessage(message: SenderToServerMessage): string {
+  switch (message.type) {
+    case "publish":
+      return JSON.stringify({
+        type: message.type,
+        label: message.label,
+        items: message.items.map(serializeSharedItem),
+      });
+    case "transfer_begin":
+      return JSON.stringify({ type: message.type, transfer_id: message.transferId, size: message.size });
+    case "transfer_end":
+      return JSON.stringify({ type: message.type, transfer_id: message.transferId });
+    case "transfer_error":
+      return JSON.stringify({ type: message.type, transfer_id: message.transferId, message: message.message });
+  }
+}
+
+export function serializeServerMessage(message: ServerToSenderMessage): string {
+  switch (message.type) {
+    case "ready":
+    case "published":
+    case "error":
+      return JSON.stringify(message);
+    case "transfer_request":
+      return JSON.stringify({ type: message.type, transfer_id: message.transferId, item_id: message.itemId });
+    case "chunk_ack":
+      return JSON.stringify({ type: message.type, transfer_id: message.transferId });
+    case "transfer_cancel":
+      return JSON.stringify({ type: message.type, transfer_id: message.transferId, message: message.message });
+    case "transfer_complete":
+      return JSON.stringify({ type: message.type, transfer_id: message.transferId });
+  }
+}
+
+function parseJsonRecord(data: string): Record<string, unknown> | null {
   try {
     const value: unknown = JSON.parse(data);
-    return is_record(value) ? value : null;
+    return isRecord(value) ? value : null;
   } catch {
     return null;
   }
 }
 
-function parse_shared_items(value: unknown): SharedItem[] | null {
-  if (!is_unknown_array(value)) return null;
+function parseSharedItems(value: unknown): SharedItem[] | null {
+  if (!isUnknownArray(value)) return null;
   const items: SharedItem[] = [];
   for (const item of value) {
-    if (!is_shared_item(item)) return null;
+    if (!isSharedItem(item)) return null;
     items.push(item);
   }
   return items;
 }
 
-function is_record(value: unknown): value is Record<string, unknown> {
+function parseWireSharedItems(value: unknown): SharedItem[] | null {
+  if (!isUnknownArray(value)) return null;
+  const items: SharedItem[] = [];
+  for (const item of value) {
+    if (
+      !isRecord(item) ||
+      !isNonemptyString(item.id) ||
+      !isNonemptyString(item.name) ||
+      !isNonemptyString(item.relative_path) ||
+      !isNonnegativeSafeInteger(item.size) ||
+      typeof item.type !== "string"
+    ) {
+      return null;
+    }
+    items.push({
+      id: item.id,
+      name: item.name,
+      relativePath: item.relative_path,
+      size: item.size,
+      type: item.type,
+    });
+  }
+  return items;
+}
+
+function serializeSharedItem(item: SharedItem): Record<string, unknown> {
+  return {
+    id: item.id,
+    name: item.name,
+    relative_path: item.relativePath,
+    size: item.size,
+    type: item.type,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function is_unknown_array(value: unknown): value is unknown[] {
+function isUnknownArray(value: unknown): value is unknown[] {
   return Array.isArray(value);
 }
 
-function is_nonempty_string(value: unknown): value is string {
+function isNonemptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
-function is_nonnegative_safe_integer(value: unknown): value is number {
+function isNonnegativeSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }

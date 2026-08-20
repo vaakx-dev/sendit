@@ -1,24 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { WebSocket } from "ws";
-import { start_sendit_server } from "./server.js";
-
-interface JsonMessage {
-  type: string;
-  [key: string]: unknown;
-}
+import { parseServerMessage, serializeSenderMessage, type ServerToSenderMessage } from "./protocol.js";
+import { startSendItServer } from "./server.js";
 
 class MessageQueue {
-  private messages: JsonMessage[] = [];
-  private waiters: Array<{ type: string; resolve: (message: JsonMessage) => void }> = [];
+  private messages: ServerToSenderMessage[] = [];
+  private waiters: Array<{ type: ServerToSenderMessage["type"]; resolve: (message: ServerToSenderMessage) => void }> = [];
 
   constructor(socket: WebSocket) {
-    socket.on("message", (data, is_binary) => {
-      if (is_binary) return;
-      const message = JSON.parse(data.toString()) as JsonMessage;
-      const waiter_index = this.waiters.findIndex((waiter) => waiter.type === message.type);
-      if (waiter_index >= 0) {
-        const [waiter] = this.waiters.splice(waiter_index, 1);
+    socket.on("message", (data, isBinary) => {
+      if (isBinary) return;
+      const message = parseServerMessage(data.toString());
+      if (!message) return;
+      const waiterIndex = this.waiters.findIndex((waiter) => waiter.type === message.type);
+      if (waiterIndex >= 0) {
+        const [waiter] = this.waiters.splice(waiterIndex, 1);
         waiter?.resolve(message);
       } else {
         this.messages.push(message);
@@ -26,36 +23,36 @@ class MessageQueue {
     });
   }
 
-  next(type: string): Promise<JsonMessage> {
-    const message_index = this.messages.findIndex((message) => message.type === type);
-    if (message_index >= 0) {
-      const [message] = this.messages.splice(message_index, 1);
-      return Promise.resolve(message as JsonMessage);
+  next<Type extends ServerToSenderMessage["type"]>(type: Type): Promise<Extract<ServerToSenderMessage, { type: Type }>> {
+    const messageIndex = this.messages.findIndex((message) => message.type === type);
+    if (messageIndex >= 0) {
+      const [message] = this.messages.splice(messageIndex, 1);
+      return Promise.resolve(message as Extract<ServerToSenderMessage, { type: Type }>);
     }
-    return new Promise((resolve) => this.waiters.push({ type, resolve }));
+    return new Promise((resolve) => this.waiters.push({ type, resolve: resolve as (message: ServerToSenderMessage) => void }));
   }
 }
 
 test("protects the control page and streams a selected file", async (context) => {
-  const server = await start_sendit_server({ public_url: "https://sendit.example" });
+  const server = await startSendItServer({ publicUrl: "https://sendit.example" });
   context.after(() => server.close());
   const local = `http://127.0.0.1:${server.port}`;
 
   assert.equal((await fetch(local)).status, 404);
-  assert.equal((await fetch(server.admin_url)).status, 200);
+  assert.equal((await fetch(server.adminUrl)).status, 200);
 
-  const { socket, queue } = await connect_sender(server.port, server.admin_key);
+  const { socket, queue } = await connectSender(server.port, server.adminKey);
   context.after(() => socket.close());
   await queue.next("ready");
 
   const content = Buffer.from("hello from SendIt");
-  socket.send(JSON.stringify({
+  socket.send(serializeSenderMessage({
     type: "publish",
     label: "Greeting",
     items: [{
       id: "greeting",
       name: "hello.txt",
-      relative_path: "hello.txt",
+      relativePath: "hello.txt",
       size: content.length,
       type: "text/plain",
     }],
@@ -64,20 +61,20 @@ test("protects the control page and streams a selected file", async (context) =>
   const token = new URL(String(published.url)).pathname.split("/").at(-1);
   assert.ok(token);
 
-  const metadata_response = await fetch(`${local}/api/shares/${token}`);
-  assert.equal(metadata_response.status, 200);
-  const metadata = await metadata_response.json() as { label: string; total_size: number };
-  assert.deepEqual(metadata, { ...metadata, label: "Greeting", total_size: content.length });
+  const metadataResponse = await fetch(`${local}/api/shares/${token}`);
+  assert.equal(metadataResponse.status, 200);
+  const metadata = await metadataResponse.json() as { label: string; totalSize: number };
+  assert.deepEqual(metadata, { ...metadata, label: "Greeting", totalSize: content.length });
 
-  const response_promise = fetch(`${local}/s/${token}/files/greeting`);
+  const responsePromise = fetch(`${local}/s/${token}/files/greeting`);
   const request = await queue.next("transfer_request");
-  const transfer_id = String(request.transfer_id);
-  socket.send(JSON.stringify({ type: "transfer_begin", transfer_id, size: content.length }));
+  const transferId = String(request.transferId);
+  socket.send(serializeSenderMessage({ type: "transfer_begin", transferId, size: content.length }));
   socket.send(content);
   await queue.next("chunk_ack");
-  socket.send(JSON.stringify({ type: "transfer_end", transfer_id }));
+  socket.send(serializeSenderMessage({ type: "transfer_end", transferId }));
 
-  const response = await response_promise;
+  const response = await responsePromise;
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-disposition")?.includes("hello.txt"), true);
   assert.equal(await response.text(), content.toString());
@@ -85,10 +82,10 @@ test("protects the control page and streams a selected file", async (context) =>
 });
 
 test("streams multiple selected files into a ZIP without staging", async (context) => {
-  const server = await start_sendit_server({ public_url: "https://sendit.example" });
+  const server = await startSendItServer({ publicUrl: "https://sendit.example" });
   context.after(() => server.close());
   const local = `http://127.0.0.1:${server.port}`;
-  const { socket, queue } = await connect_sender(server.port, server.admin_key);
+  const { socket, queue } = await connectSender(server.port, server.adminKey);
   context.after(() => socket.close());
   await queue.next("ready");
 
@@ -96,35 +93,35 @@ test("streams multiple selected files into a ZIP without staging", async (contex
     ["one", Buffer.from("first file")],
     ["two", Buffer.from("second file")],
   ]);
-  socket.send(JSON.stringify({
+  socket.send(serializeSenderMessage({
     type: "publish",
     label: "Example folder",
     items: [
-      { id: "one", name: "one.txt", relative_path: "Example/one.txt", size: files.get("one")?.length, type: "text/plain" },
-      { id: "two", name: "two.txt", relative_path: "Example/two.txt", size: files.get("two")?.length, type: "text/plain" },
+      { id: "one", name: "one.txt", relativePath: "Example/one.txt", size: files.get("one")?.length, type: "text/plain" },
+      { id: "two", name: "two.txt", relativePath: "Example/two.txt", size: files.get("two")?.length, type: "text/plain" },
     ],
   }));
   const published = await queue.next("published");
   const token = new URL(String(published.url)).pathname.split("/").at(-1);
 
-  const archive_promise = fetch(`${local}/s/${token}/archive`).then(async (response) => {
+  const archivePromise = fetch(`${local}/s/${token}/archive`).then(async (response) => {
     assert.equal(response.status, 200);
     return Buffer.from(await response.arrayBuffer());
   });
 
   for (let index = 0; index < files.size; index += 1) {
     const request = await queue.next("transfer_request");
-    const transfer_id = String(request.transfer_id);
-    const content = files.get(String(request.item_id));
+    const transferId = String(request.transferId);
+    const content = files.get(String(request.itemId));
     assert.ok(content);
-    socket.send(JSON.stringify({ type: "transfer_begin", transfer_id, size: content.length }));
+    socket.send(serializeSenderMessage({ type: "transfer_begin", transferId, size: content.length }));
     socket.send(content);
     await queue.next("chunk_ack");
-    socket.send(JSON.stringify({ type: "transfer_end", transfer_id }));
+    socket.send(serializeSenderMessage({ type: "transfer_end", transferId }));
     await queue.next("transfer_complete");
   }
 
-  const archive = await archive_promise;
+  const archive = await archivePromise;
   assert.equal(archive.subarray(0, 2).toString(), "PK");
   assert.equal(archive.includes(Buffer.from("Example/one.txt")), true);
   assert.equal(archive.includes(Buffer.from("Example/two.txt")), true);
@@ -132,7 +129,7 @@ test("streams multiple selected files into a ZIP without staging", async (contex
   assert.equal(archive.includes(files.get("two") as Buffer), true);
 });
 
-async function connect_sender(port: number, key: string): Promise<{ socket: WebSocket; queue: MessageQueue }> {
+async function connectSender(port: number, key: string): Promise<{ socket: WebSocket; queue: MessageQueue }> {
   const socket = new WebSocket(`ws://127.0.0.1:${port}/ws/sender?key=${encodeURIComponent(key)}`);
   const queue = new MessageQueue(socket);
   await new Promise<void>((resolve, reject) => {

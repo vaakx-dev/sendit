@@ -2,9 +2,9 @@ import { cp, mkdir, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
-const output_url = new URL("../dist/src/web/", import.meta.url);
-await rm(output_url, { recursive: true, force: true });
-await mkdir(output_url, { recursive: true });
+const outputUrl = new URL("../dist/src/web/", import.meta.url);
+await rm(outputUrl, { recursive: true, force: true });
+await mkdir(outputUrl, { recursive: true });
 
 await build({
   entryPoints: {
@@ -13,12 +13,12 @@ await build({
   },
   bundle: true,
   format: "iife",
-  outdir: fileURLToPath(output_url),
+  outdir: fileURLToPath(outputUrl),
   platform: "browser",
   sourcemap: true,
   target: "es2022",
 });
 
 for (const asset of ["styles.css", "sender.html", "receiver.html"]) {
-  await cp(new URL(`../src/client/${asset}`, import.meta.url), new URL(asset, output_url));
+  await cp(new URL(`../src/client/${asset}`, import.meta.url), new URL(asset, outputUrl));
 }

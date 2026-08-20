@@ -29,7 +29,7 @@ const spreadsheet = new Set(["csv", "ods", "tsv", "xls", "xlsx"]);
 const database = new Set(["db", "sqlite", "sqlite3"]);
 const executable = new Set(["app", "bat", "cmd", "com", "dll", "exe", "msi", "ps1"]);
 
-export function file_type_icon(path: string, size = 17): HTMLElement {
+export function fileTypeIcon(path: string, size = 17): HTMLElement {
   const extension = path.split(".").at(-1)?.toLowerCase() ?? "";
   let value: FileIcon = File;
   if (image.has(extension)) value = FileImage;

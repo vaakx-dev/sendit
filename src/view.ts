@@ -14,21 +14,21 @@ const ASSETS: Record<string, string> = {
   "styles.css": "text/css; charset=utf-8",
 };
 
-export async function send_page(response: ServerResponse, name: "sender.html" | "receiver.html"): Promise<void> {
-  await send_file(response, name, "text/html; charset=utf-8");
+export async function sendPage(response: ServerResponse, name: "sender.html" | "receiver.html"): Promise<void> {
+  await sendFile(response, name, "text/html; charset=utf-8");
 }
 
-export async function send_asset(response: ServerResponse, name: string): Promise<boolean> {
-  const content_type = ASSETS[name];
-  if (!content_type) return false;
-  await send_file(response, name, content_type);
+export async function sendAsset(response: ServerResponse, name: string): Promise<boolean> {
+  const contentType = ASSETS[name];
+  if (!contentType) return false;
+  await sendFile(response, name, contentType);
   return true;
 }
 
-async function send_file(response: ServerResponse, name: string, content_type: string): Promise<void> {
+async function sendFile(response: ServerResponse, name: string, contentType: string): Promise<void> {
   const path = `${WEB_DIRECTORY}/${name}`;
   if (!existsSync(path)) throw new Error(`Missing web asset: ${name}`);
-  response.writeHead(200, { ...HEADERS, "Content-Type": content_type });
+  response.writeHead(200, { ...HEADERS, "Content-Type": contentType });
   await new Promise<void>((resolve, reject) => {
     const stream = createReadStream(path);
     stream.on("error", reject);

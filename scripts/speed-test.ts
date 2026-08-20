@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 import { WebSocket } from "ws";
-import { start_sendit_server } from "../src/server.js";
+import { serializeSenderMessage } from "../src/protocol.js";
+import { startSendItServer } from "../src/server.js";
 
 interface Message {
   type: string;
@@ -34,15 +35,15 @@ class Messages {
 }
 
 const MiB = 1024 * 1024;
-const requested_mib = Number(process.env.SENDIT_SPEED_MIB ?? 1024);
-if (!Number.isSafeInteger(requested_mib) || requested_mib < 1) {
+const requestedMib = Number(process.env.SENDIT_SPEED_MIB ?? 1024);
+if (!Number.isSafeInteger(requestedMib) || requestedMib < 1) {
   throw new Error("SENDIT_SPEED_MIB must be a positive integer.");
 }
-const size = requested_mib * MiB;
+const size = requestedMib * MiB;
 const chunk = Buffer.alloc(256 * 1024, 0x5a);
 
-const server = await start_sendit_server({ public_url: "https://sendit.example" });
-const socket = new WebSocket(`ws://127.0.0.1:${server.port}/ws/sender?key=${encodeURIComponent(server.admin_key)}`);
+const server = await startSendItServer({ publicUrl: "https://sendit.example" });
+const socket = new WebSocket(`ws://127.0.0.1:${server.port}/ws/sender?key=${encodeURIComponent(server.adminKey)}`);
 const messages = new Messages(socket);
 
 try {
@@ -52,33 +53,33 @@ try {
   });
   await messages.next("ready");
 
-  socket.send(JSON.stringify({
+  socket.send(serializeSenderMessage({
     type: "publish",
     label: "speed-test",
-    items: [{ id: "speed", name: "speed.bin", relative_path: "speed.bin", size, type: "application/octet-stream" }],
+    items: [{ id: "speed", name: "speed.bin", relativePath: "speed.bin", size, type: "application/octet-stream" }],
   }));
   const published = await messages.next("published");
   const token = new URL(String(published.url)).pathname.split("/").at(-1);
 
-  const download_started = performance.now();
-  const response_promise = fetch(`http://127.0.0.1:${server.port}/s/${token}/files/speed`);
+  const downloadStarted = performance.now();
+  const responsePromise = fetch(`http://127.0.0.1:${server.port}/s/${token}/files/speed`);
   const request = await messages.next("transfer_request");
-  const transfer_id = String(request.transfer_id);
-  socket.send(JSON.stringify({ type: "transfer_begin", transfer_id, size }));
+  const transferId = String(request.transferId);
+  socket.send(serializeSenderMessage({ type: "transfer_begin", transferId, size }));
 
-  const upload_started = performance.now();
+  const uploadStarted = performance.now();
   const upload = (async () => {
     for (let sent = 0; sent < size; sent += chunk.length) {
       const remaining = size - sent;
       socket.send(remaining < chunk.length ? chunk.subarray(0, remaining) : chunk);
       await messages.next("chunk_ack");
     }
-    socket.send(JSON.stringify({ type: "transfer_end", transfer_id }));
+    socket.send(serializeSenderMessage({ type: "transfer_end", transferId }));
     await messages.next("transfer_complete");
-    return performance.now() - upload_started;
+    return performance.now() - uploadStarted;
   })();
 
-  const response = await response_promise;
+  const response = await responsePromise;
   assert.equal(response.status, 200);
   const reader = response.body?.getReader();
   assert.ok(reader);
@@ -88,13 +89,13 @@ try {
     if (result.done) break;
     received += result.value.byteLength;
   }
-  const download_ms = performance.now() - download_started;
-  const upload_ms = await upload;
+  const downloadMs = performance.now() - downloadStarted;
+  const uploadMs = await upload;
   assert.equal(received, size);
 
-  console.log(`Local SendIt speed test (${requested_mib.toLocaleString()} MiB)`);
-  console.log(`Upload   browser -> SendIt:    ${speed(size, upload_ms)} MiB/s`);
-  console.log(`Download SendIt -> recipient:  ${speed(size, download_ms)} MiB/s`);
+  console.log(`Local SendIt speed test (${requestedMib.toLocaleString()} MiB)`);
+  console.log(`Upload   browser -> SendIt:    ${speed(size, uploadMs)} MiB/s`);
+  console.log(`Download SendIt -> recipient:  ${speed(size, downloadMs)} MiB/s`);
   console.log("This measures the local streaming pipeline, not Cloudflare or internet speed.");
 } finally {
   socket.close();

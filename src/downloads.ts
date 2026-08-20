@@ -2,9 +2,9 @@ import type { ServerResponse } from "node:http";
 import { PassThrough } from "node:stream";
 import { ZipArchive } from "archiver";
 import type { AppEvent } from "./events.js";
-import { content_disposition, HEADERS, send_text } from "./http.js";
+import { contentDisposition, HEADERS, sendText } from "./http.js";
 import type { SharedItem } from "./protocol.js";
-import { archive_name, type Share } from "./share.js";
+import { archiveName, type Share } from "./share.js";
 import { SenderConnection } from "./transfer.js";
 
 export class Downloads {
@@ -19,7 +19,7 @@ export class Downloads {
       ...HEADERS,
       "Content-Type": item.type || "application/octet-stream",
       "Content-Length": item.size,
-      "Content-Disposition": content_disposition(item.name),
+      "Content-Disposition": contentDisposition(item.name),
     });
     const cancel = () => this.sender.cancel(new Error("The recipient cancelled the download."));
     response.once("close", cancel);
@@ -35,11 +35,11 @@ export class Downloads {
 
   async archive(response: ServerResponse, share: Share): Promise<void> {
     if (!this.available(response)) return;
-    const name = archive_name(share);
+    const name = archiveName(share);
     response.writeHead(200, {
       ...HEADERS,
       "Content-Type": "application/zip",
-      "Content-Disposition": content_disposition(name),
+      "Content-Disposition": contentDisposition(name),
     });
 
     const archive = new ZipArchive({ zlib: { level: 0 } });
@@ -55,7 +55,7 @@ export class Downloads {
     try {
       for (const item of share.items) {
         const stream = new PassThrough();
-        archive.append(stream, { name: item.relative_path });
+        archive.append(stream, { name: item.relativePath });
         await this.stream(item, stream);
         stream.end();
       }
@@ -68,28 +68,28 @@ export class Downloads {
   }
 
   private available(response: ServerResponse): boolean {
-    if (!this.sender.is_connected()) {
-      send_text(response, 409, "The sender is offline.");
+    if (!this.sender.isConnected()) {
+      sendText(response, 409, "The sender is offline.");
       return false;
     }
-    if (this.sender.is_busy()) {
-      send_text(response, 409, "Another download is already running.");
+    if (this.sender.isBusy()) {
+      sendText(response, 409, "Another download is already running.");
       return false;
     }
     return true;
   }
 
   private async stream(item: SharedItem, sink: PassThrough | ServerResponse): Promise<void> {
-    this.notify({ type: "download_started", name: item.relative_path, size: item.size });
+    this.notify({ type: "downloadStarted", name: item.relativePath, size: item.size });
     await this.sender.request(item, sink, (written, size) => {
-      this.notify({ type: "download_progress", name: item.relative_path, written, size });
+      this.notify({ type: "downloadProgress", name: item.relativePath, written, size });
     });
-    this.notify({ type: "download_finished", name: item.relative_path });
+    this.notify({ type: "downloadFinished", name: item.relativePath });
   }
 
   private fail(response: ServerResponse, name: string, error: unknown): void {
     const value = error instanceof Error ? error : new Error("Download failed.");
-    this.notify({ type: "download_failed", name, message: value.message });
+    this.notify({ type: "downloadFailed", name, message: value.message });
     response.destroy(value);
   }
 }

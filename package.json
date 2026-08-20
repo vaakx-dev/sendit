@@ -12,12 +12,12 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsx scripts/clean.ts && tsc && tsc -p tsconfig.client.json && tsx scripts/build_assets.ts",
+    "build": "tsx scripts/clean.ts && tsc && tsc -p tsconfig.client.json && tsx scripts/build-assets.ts",
     "dev": "npm run build && node dist/src/cli.js --local",
     "start": "node dist/src/cli.js",
     "test": "npm run build && tsx --test src/protocol.test.ts src/transfer.test.ts src/tunnel.test.ts src/installer.test.ts src/server.test.ts src/client/channel.test.ts src/client/selection.test.ts",
     "test:stress": "npm run build && tsx --test --test-concurrency=1 src/client/selection.stress.test.ts src/server.stress.test.ts",
-    "test:speed": "npm run build && tsx scripts/speed_test.ts"
+    "test:speed": "npm run build && tsx scripts/speed-test.ts"
   },
   "engines": {
     "node": ">=22"
@@ -26,7 +26,7 @@
     "win32"
   ],
   "dependencies": {
-    "@vaakx-dev/vrui": "git+https://github.com/vaakx-dev/vrui.git#5b5b23b5ae3cb1981866024a924bb68ea0466ba2",
+    "@vaakx-dev/vrui": "git+https://github.com/vaakx-dev/vrui.git#2d6ba0edcfc33eb8d80d479dd06d77322181d058",
     "archiver": "8.0.0",
     "ignore": "^7.0.5",
     "lucide": "1.28.0",

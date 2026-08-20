@@ -2,16 +2,16 @@ import {
   button,
   details,
   div,
-  dynamic_child,
+  dynamic_child as dynamicChild,
   h1,
   h2,
   icon,
   input,
   main,
   mount,
-  on_timeout,
+  on_timeout as onTimeout,
   p,
-  prevent_then,
+  prevent_then as preventThen,
   section,
   show,
   sig,
@@ -21,8 +21,8 @@ import {
 } from "@vaakx-dev/vrui";
 import { Check, ChevronLeft, Copy, File, Folder, Link, Upload } from "lucide";
 import { SenderChannel, type ChannelEvent } from "./channel.js";
-import { format_bytes } from "./common.js";
-import { file_type_icon } from "./file_icons.js";
+import { formatBytes } from "./common.js";
+import { fileTypeIcon } from "./file-icons.js";
 import { Selection, type SelectedFile, type SelectionEntry } from "./selection.js";
 import { topbar } from "./ui.js";
 
@@ -35,35 +35,35 @@ interface TransferView {
 
 const selection = new Selection();
 const files = sig<SelectedFile[]>([]);
-const current_directory = sig("");
+const currentDirectory = sig("");
 const connected = sig(false);
 const dragging = sig(false);
 const selecting = sig(false);
-const share_url = sig("");
-const copy_text = sig("Copy");
+const shareUrl = sig("");
+const copyText = sig("Copy");
 const transfer = sig<TransferView | null>(null);
 const error = sig("");
 const WAITING_FOR_RECEIVER = "Waiting for the receiver";
-const has_files = files.map((value) => value.length > 0);
-const selected_files = files.map((value) => value.filter((record) => record.selected));
-const browser_entries = files.map(() => selection.entries(current_directory.get()));
-const can_publish = selected_files.map((value) => connected.get() && value.length > 0);
+const hasFiles = files.map((value) => value.length > 0);
+const selectedFiles = files.map((value) => value.filter((record) => record.selected));
+const browserEntries = files.map(() => selection.entries(currentDirectory.get()));
+const canPublish = selectedFiles.map((value) => connected.get() && value.length > 0);
 const key = new URLSearchParams(location.search).get("key") ?? "";
-const channel = new SenderChannel(key, selection, handle_channel_event);
-let browser_scroll = 0;
+const channel = new SenderChannel(key, selection, handleChannelEvent);
+let browserScroll = 0;
 
-const file_input = input({
+const fileInput = input({
   type: "file",
   multiple: true,
   hidden: true,
-  on_change: () => void choose([...(file_input.files ?? [])]),
+  on_change: () => void choose([...(fileInput.files ?? [])]),
 });
-const folder_input = input({
+const folderInput = input({
   type: "file",
   multiple: true,
   hidden: true,
   webkitdirectory: true,
-  on_change: () => void choose([...(folder_input.files ?? [])]),
+  on_change: () => void choose([...(folderInput.files ?? [])]),
 });
 
 mount(
@@ -75,23 +75,23 @@ mount(
       connected.map((value) => value ? "" : "pending"),
     ),
     section({ class: "hero" }, h1("SENDIT")),
-    file_input,
-    folder_input,
-    show(has_files.map((value) => !value), drop_zone),
-    show(has_files, selection_panel),
+    fileInput,
+    folderInput,
+    show(hasFiles.map((value) => !value), dropZone),
+    show(hasFiles, selectionPanel),
     show(error.map(Boolean), () => p({ class: "error", role: "alert" }, error)),
   ),
 );
 
-function drop_zone(): HTMLElement {
+function dropZone(): HTMLElement {
   return section(
     {
       class: ["drop-zone", { dragging }],
       "aria-label": "File selection",
-      on_drag_enter: prevent_then(drag_over),
-      on_drag_over: prevent_then(drag_over),
-      on_drag_leave: prevent_then(drag_end),
-      on_drop: prevent_then(drop),
+      on_drag_enter: preventThen(dragOver),
+      on_drag_over: preventThen(dragOver),
+      on_drag_leave: preventThen(dragEnd),
+      on_drop: preventThen(drop),
     },
     div({ class: "drop-icon", "aria-hidden": "true" }, icon(Upload, 28)),
     h2(selecting.map((value) => value ? "Reading folder…" : "Drop files or a folder here")),
@@ -99,12 +99,12 @@ function drop_zone(): HTMLElement {
     div(
       { class: "actions" },
       button(
-        { class: "button secondary", type: "button", disabled: selecting, on_click: () => file_input.click() },
+        { class: "button secondary", type: "button", disabled: selecting, on_click: () => fileInput.click() },
         icon(File, 17),
         "Choose files",
       ),
       button(
-        { class: "button primary", type: "button", disabled: selecting, on_click: () => folder_input.click() },
+        { class: "button primary", type: "button", disabled: selecting, on_click: () => folderInput.click() },
         icon(Folder, 17),
         "Choose folder",
       ),
@@ -112,7 +112,7 @@ function drop_zone(): HTMLElement {
   );
 }
 
-function selection_panel(): HTMLElement {
+function selectionPanel(): HTMLElement {
   return div(
     { class: "sender-workspace" },
     section(
@@ -124,97 +124,97 @@ function selection_panel(): HTMLElement {
       ),
       div(
         { class: "summary selection-summary" },
-        span(selected_files.map((value) => `${value.length} of ${files.get().length} files selected`)),
-        strong(selected_files.map((value) => format_bytes(value.reduce((total, item) => total + item.file.size, 0)))),
+        span(selectedFiles.map((value) => `${value.length} of ${files.get().length} files selected`)),
+        strong(selectedFiles.map((value) => formatBytes(value.reduce((total, item) => total + item.file.size, 0)))),
       ),
       button(
         {
           class: "button primary wide publish-button",
           type: "button",
-          disabled: can_publish.map((value) => !value),
+          disabled: canPublish.map((value) => !value),
           on_click: publish,
         },
         icon(Link, 17),
-        share_url.map((value) => value ? "Update sharing link" : "Create sharing link"),
+        shareUrl.map((value) => value ? "Update sharing link" : "Create sharing link"),
       ),
-      show(share_url.map(Boolean), share_link),
-      show(transfer.map(Boolean), transfer_status),
+      show(shareUrl.map(Boolean), shareLink),
+      show(transfer.map(Boolean), transferStatus),
     ),
     details(
       { class: "panel browser-panel file-picker" },
       summary(
         div(
           p({ class: "eyebrow" }, "Files to send"),
-          strong(selected_files.map((value) => `${value.length} selected`)),
+          strong(selectedFiles.map((value) => `${value.length} selected`)),
         ),
         span("Change"),
       ),
       div(
         { class: "browser-heading" },
-        button({ class: "icon-button", type: "button", on_click: go_up, disabled: current_directory.map((value) => !parent_directory(value)) }, icon(ChevronLeft, 18)),
+        button({ class: "icon-button", type: "button", on_click: goUp, disabled: currentDirectory.map((value) => !parentDirectory(value)) }, icon(ChevronLeft, 18)),
         div(
           p({ class: "eyebrow" }, "Files to send"),
-          strong(current_directory.map((value) => value || "Selected files")),
+          strong(currentDirectory.map((value) => value || "Selected files")),
         ),
       ),
-      dynamic_child(browser_entries, directory_list),
+      dynamicChild(browserEntries, directoryList),
     ),
   );
 }
 
-function directory_list(records: SelectionEntry[]): HTMLElement {
+function directoryList(records: SelectionEntry[]): HTMLElement {
   return div(
     {
       class: "file-browser",
-      on_mount: (node) => { node.scrollTop = browser_scroll; },
+      on_mount: (node) => { node.scrollTop = browserScroll; },
       on_scroll: (event) => {
         const node = event.currentTarget;
-        if (node instanceof HTMLDivElement) browser_scroll = node.scrollTop;
+        if (node instanceof HTMLDivElement) browserScroll = node.scrollTop;
       },
     },
-    records.map(entry_row),
+    records.map(entryRow),
     records.length === 0 ? p({ class: "hint" }, "This folder is empty.") : null,
   );
 }
 
-function entry_row(entry: SelectionEntry): HTMLElement {
-  const checked = entry.selected_count === entry.file_count;
+function entryRow(entry: SelectionEntry): HTMLElement {
+  const checked = entry.selectedCount === entry.fileCount;
   const checkbox = input({
     type: "checkbox",
     checked,
     "aria-label": `Include ${entry.name}`,
-    on_mount: (node) => { node.indeterminate = entry.selected_count > 0 && !checked; },
-    on_change: () => toggle_entry(entry.path, checkbox.checked),
+    on_mount: (node) => { node.indeterminate = entry.selectedCount > 0 && !checked; },
+    on_change: () => toggleEntry(entry.path, checkbox.checked),
   });
   const name = entry.directory
-    ? button({ class: "entry-name", type: "button", on_click: () => open_directory(entry.path) }, icon(Folder, 17), strong(entry.name))
-    : div({ class: "entry-name" }, file_type_icon(entry.name), strong(entry.name));
+    ? button({ class: "entry-name", type: "button", on_click: () => openDirectory(entry.path) }, icon(Folder, 17), strong(entry.name))
+    : div({ class: "entry-name" }, fileTypeIcon(entry.name), strong(entry.name));
   return div(
-    { class: ["browser-row", { excluded: entry.selected_count === 0 }] },
+    { class: ["browser-row", { excluded: entry.selectedCount === 0 }] },
     checkbox,
     name,
-    span(entry.directory ? `${entry.selected_count}/${entry.file_count}` : format_bytes(entry.size)),
+    span(entry.directory ? `${entry.selectedCount}/${entry.fileCount}` : formatBytes(entry.size)),
   );
 }
 
-function share_link(): HTMLElement {
+function shareLink(): HTMLElement {
   return div(
     { class: "share-result" },
     p({ class: "eyebrow" }, "Link is live"),
     div(
       { class: "link-row" },
-      input({ value: share_url, readOnly: true, "aria-label": "Sharing link", on_focus: (event) => (event.currentTarget as HTMLInputElement).select() }),
+      input({ value: shareUrl, readOnly: true, "aria-label": "Sharing link", on_focus: (event) => (event.currentTarget as HTMLInputElement).select() }),
       button(
-        { class: "button primary", type: "button", on_click: copy_link },
-        dynamic_child(copy_text, (value) => value === "Copied" ? icon(Check, 17) : icon(Copy, 17)),
-        copy_text,
+        { class: "button primary", type: "button", on_click: copyLink },
+        dynamicChild(copyText, (value) => value === "Copied" ? icon(Check, 17) : icon(Copy, 17)),
+        copyText,
       ),
     ),
     p({ class: "hint" }, "Keep this page and the SendIt command window open."),
   );
 }
 
-function transfer_status(): HTMLElement {
+function transferStatus(): HTMLElement {
   const current = transfer.map((value) => value ?? { name: WAITING_FOR_RECEIVER, sent: 0, size: 0, complete: false });
   const percent = current.map((value) => value.size === 0 ? 0 : Math.round((value.sent / value.size) * 100));
   return div(
@@ -229,7 +229,7 @@ function transfer_status(): HTMLElement {
       { class: "hint" },
       current.map((value) => value.complete
         ? `${value.name} was sent successfully.`
-        : value.size ? `${format_bytes(value.sent)} of ${format_bytes(value.size)}` : WAITING_FOR_RECEIVER),
+        : value.size ? `${formatBytes(value.sent)} of ${formatBytes(value.size)}` : WAITING_FOR_RECEIVER),
     ),
   );
 }
@@ -239,11 +239,11 @@ async function choose(values: File[]): Promise<void> {
   selecting.set(true);
   error.set("");
   try {
-    await selection.set_files(values);
-    refresh_files();
-    browser_scroll = 0;
-    current_directory.set(selection.root());
-    share_url.set("");
+    await selection.setFiles(values);
+    refreshFiles();
+    browserScroll = 0;
+    currentDirectory.set(selection.root());
+    shareUrl.set("");
     transfer.set(null);
   } catch (cause) {
     error.set(cause instanceof Error ? cause.message : "Could not read the selected files.");
@@ -252,14 +252,14 @@ async function choose(values: File[]): Promise<void> {
   }
 }
 
-function toggle_entry(path: string, selected: boolean): void {
+function toggleEntry(path: string, selected: boolean): void {
   selection.select(path, selected);
-  refresh_files();
-  share_url.set("");
+  refreshFiles();
+  shareUrl.set("");
   transfer.set(null);
 }
 
-function refresh_files(): void {
+function refreshFiles(): void {
   files.set(selection.all());
 }
 
@@ -271,15 +271,15 @@ function publish(): void {
 function clear(): void {
   selection.clear();
   files.set([]);
-  current_directory.set("");
-  browser_scroll = 0;
-  file_input.value = "";
-  folder_input.value = "";
-  share_url.set("");
+  currentDirectory.set("");
+  browserScroll = 0;
+  fileInput.value = "";
+  folderInput.value = "";
+  shareUrl.set("");
   transfer.set(null);
 }
 
-function parent_directory(path: string): string {
+function parentDirectory(path: string): string {
   const root = selection.root();
   if (!path || path === root) return "";
   const slash = path.lastIndexOf("/");
@@ -287,21 +287,21 @@ function parent_directory(path: string): string {
   return parent.length < root.length ? root : parent;
 }
 
-function open_directory(path: string): void {
-  browser_scroll = 0;
-  current_directory.set(path);
+function openDirectory(path: string): void {
+  browserScroll = 0;
+  currentDirectory.set(path);
 }
 
-function go_up(): void {
-  const parent = parent_directory(current_directory.get());
-  if (parent) open_directory(parent);
+function goUp(): void {
+  const parent = parentDirectory(currentDirectory.get());
+  if (parent) openDirectory(parent);
 }
 
-function drag_over(): void {
+function dragOver(): void {
   dragging.set(true);
 }
 
-function drag_end(): void {
+function dragEnd(): void {
   dragging.set(false);
 }
 
@@ -311,11 +311,11 @@ async function drop(event: DragEvent): Promise<void> {
   selecting.set(true);
   error.set("");
   try {
-    await selection.set_drop(event.dataTransfer.items, event.dataTransfer.files);
-    refresh_files();
-    browser_scroll = 0;
-    current_directory.set(selection.root());
-    share_url.set("");
+    await selection.setDrop(event.dataTransfer.items, event.dataTransfer.files);
+    refreshFiles();
+    browserScroll = 0;
+    currentDirectory.set(selection.root());
+    shareUrl.set("");
     transfer.set(null);
   } catch (cause) {
     error.set(cause instanceof Error ? cause.message : "Could not read the dropped folder.");
@@ -324,7 +324,7 @@ async function drop(event: DragEvent): Promise<void> {
   }
 }
 
-function handle_channel_event(event: ChannelEvent): void {
+function handleChannelEvent(event: ChannelEvent): void {
   switch (event.type) {
     case "connected":
       connected.set(true);
@@ -334,7 +334,7 @@ function handle_channel_event(event: ChannelEvent): void {
       error.set("The local SendIt connection closed. Restart the command to share again.");
       break;
     case "published":
-      share_url.set(event.url);
+      shareUrl.set(event.url);
       transfer.set({ name: WAITING_FOR_RECEIVER, sent: 0, size: 0, complete: false });
       break;
     case "progress":
@@ -349,11 +349,11 @@ function handle_channel_event(event: ChannelEvent): void {
   }
 }
 
-async function copy_link(): Promise<void> {
+async function copyLink(): Promise<void> {
   try {
-    await navigator.clipboard.writeText(share_url.get());
-    copy_text.set("Copied");
-    on_timeout(() => copy_text.set("Copy"), 1400);
+    await navigator.clipboard.writeText(shareUrl.get());
+    copyText.set("Copied");
+    onTimeout(() => copyText.set("Copy"), 1400);
   } catch {
     error.set("Could not copy the link. Select and copy it manually.");
   }

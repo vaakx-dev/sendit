@@ -22,22 +22,22 @@ export interface Tunnel {
   stop(): Promise<void>;
 }
 
-export function extract_tunnel_url(output: string): string | null {
+export function extractTunnelUrl(output: string): string | null {
   return output.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i)?.[0] ?? null;
 }
 
-export async function start_quick_tunnel(origin: string, on_status?: (message: string) => void): Promise<Tunnel> {
-  const executable = await resolve_cloudflared(on_status);
+export async function startQuickTunnel(origin: string, onStatus?: (message: string) => void): Promise<Tunnel> {
+  const executable = await resolveCloudflared(onStatus);
   const process = spawn(executable, ["tunnel", "--no-autoupdate", "--url", origin], {
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
-  return await monitor_tunnel_process(process);
+  return await monitorTunnelProcess(process);
 }
 
-export async function monitor_tunnel_process(
+export async function monitorTunnelProcess(
   process: ChildProcess,
-  startup_timeout_ms = 30_000,
+  startupTimeoutMs = 30_000,
 ): Promise<Tunnel> {
   const stdout = process.stdout;
   const stderr = process.stderr;
@@ -46,46 +46,46 @@ export async function monitor_tunnel_process(
   let output = "";
   let ready = false;
   let stopping = false;
-  let close_reported = false;
-  let report_close: (result: TunnelClose) => void = () => {};
+  let closeReported = false;
+  let reportClose: (result: TunnelClose) => void = () => {};
   const closed = new Promise<TunnelClose>((resolve) => {
-    report_close = resolve;
+    reportClose = resolve;
   });
 
   const url = await new Promise<string>((resolve, reject) => {
     const timeout = setTimeout(() => {
       stopping = true;
       process.kill();
-      const seconds = Math.ceil(startup_timeout_ms / 1000);
+      const seconds = Math.ceil(startupTimeoutMs / 1000);
       reject(new Error(`Cloudflare did not create a tunnel within ${seconds} seconds.\n${output.slice(-2000)}`));
-    }, startup_timeout_ms);
+    }, startupTimeoutMs);
 
     const inspect = (chunk: Buffer) => {
       output = `${output}${chunk.toString()}`.slice(-8_000);
       if (ready) return;
-      const tunnel_url = extract_tunnel_url(output);
-      if (!tunnel_url) return;
+      const tunnelUrl = extractTunnelUrl(output);
+      if (!tunnelUrl) return;
       ready = true;
       clearTimeout(timeout);
-      resolve(tunnel_url);
+      resolve(tunnelUrl);
     };
-    const report_process_close = (error: Error) => {
+    const reportProcessClose = (error: Error) => {
       clearTimeout(timeout);
       if (!ready) {
         reject(error);
         return;
       }
-      if (close_reported) return;
-      close_reported = true;
-      report_close(stopping ? { type: "stopped" } : { type: "failed", error });
+      if (closeReported) return;
+      closeReported = true;
+      reportClose(stopping ? { type: "stopped" } : { type: "failed", error });
     };
 
     stdout.on("data", inspect);
     stderr.on("data", inspect);
-    process.once("error", (error) => report_process_close(error));
+    process.once("error", (error) => reportProcessClose(error));
     process.once("exit", (code, signal) => {
       const reason = code === null ? `signal ${signal ?? "unknown"}` : `exit ${code}`;
-      report_process_close(new Error(`Cloudflare tunnel stopped with ${reason}.\n${output.slice(-2000)}`));
+      reportProcessClose(new Error(`Cloudflare tunnel stopped with ${reason}.\n${output.slice(-2000)}`));
     });
   });
 
@@ -94,17 +94,17 @@ export async function monitor_tunnel_process(
     closed,
     async stop() {
       stopping = true;
-      await stop_process(process);
-      if (!close_reported) {
-        close_reported = true;
-        report_close({ type: "stopped" });
+      await stopProcess(process);
+      if (!closeReported) {
+        closeReported = true;
+        reportClose({ type: "stopped" });
       }
       await closed;
     },
   };
 }
 
-export async function file_matches_sha256(path: string, expected: string): Promise<boolean> {
+export async function fileMatchesSha256(path: string, expected: string): Promise<boolean> {
   try {
     const hash = createHash("sha256");
     for await (const chunk of createReadStream(path)) hash.update(chunk);
@@ -114,10 +114,10 @@ export async function file_matches_sha256(path: string, expected: string): Promi
   }
 }
 
-export function probe_executable_version(
+export function probeExecutableVersion(
   executable: string,
-  expected_version: string,
-  timeout_ms = 5_000,
+  expectedVersion: string,
+  timeoutMs = 5_000,
 ): Promise<boolean> {
   return new Promise((resolve) => {
     const child = spawn(executable, ["--version"], {
@@ -129,7 +129,7 @@ export function probe_executable_version(
     const timeout = setTimeout(() => {
       child.kill();
       finish(false);
-    }, timeout_ms);
+    }, timeoutMs);
     const inspect = (chunk: Buffer) => {
       output = `${output}${chunk.toString()}`.slice(-2_000);
     };
@@ -143,11 +143,11 @@ export function probe_executable_version(
     child.stdout?.on("data", inspect);
     child.stderr?.on("data", inspect);
     child.once("error", () => finish(false));
-    child.once("exit", (code) => finish(code === 0 && output.includes(expected_version)));
+    child.once("exit", (code) => finish(code === 0 && output.includes(expectedVersion)));
   });
 }
 
-async function resolve_cloudflared(on_status?: (message: string) => void): Promise<string> {
+async function resolveCloudflared(onStatus?: (message: string) => void): Promise<string> {
   if (process.platform !== "win32") {
     throw new Error("SendIt currently supports Windows only.");
   }
@@ -155,9 +155,9 @@ async function resolve_cloudflared(on_status?: (message: string) => void): Promi
   const base = process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local");
   const directory = join(base, "sendit", "bin");
   const executable = join(directory, `cloudflared-${CLOUDFLARED_VERSION}-windows-amd64.exe`);
-  if (await verified_cloudflared(executable)) return executable;
+  if (await verifiedCloudflared(executable)) return executable;
 
-  on_status?.(`Downloading verified cloudflared ${CLOUDFLARED_VERSION} for first use...`);
+  onStatus?.(`Downloading verified cloudflared ${CLOUDFLARED_VERSION} for first use...`);
   await mkdir(directory, { recursive: true });
   await rm(executable, { force: true });
   const temporary = `${executable}.${process.pid}.download`;
@@ -170,17 +170,17 @@ async function resolve_cloudflared(on_status?: (message: string) => void): Promi
       throw new Error(`Download failed with HTTP ${response.status}.`);
     }
     await pipeline(Readable.from(response.body), createWriteStream(temporary));
-    if (!await file_matches_sha256(temporary, CLOUDFLARED_SHA256)) {
+    if (!await fileMatchesSha256(temporary, CLOUDFLARED_SHA256)) {
       throw new Error("The downloaded cloudflared checksum did not match the pinned release.");
     }
     await chmod(temporary, 0o755);
-    if (!await probe_executable_version(temporary, CLOUDFLARED_VERSION)) {
+    if (!await probeExecutableVersion(temporary, CLOUDFLARED_VERSION)) {
       throw new Error("The downloaded cloudflared executable did not report the pinned version.");
     }
     try {
       await rename(temporary, executable);
     } catch (error) {
-      if (!await verified_cloudflared(executable)) throw error;
+      if (!await verifiedCloudflared(executable)) throw error;
       await rm(temporary, { force: true });
     }
     return executable;
@@ -190,12 +190,12 @@ async function resolve_cloudflared(on_status?: (message: string) => void): Promi
   }
 }
 
-async function verified_cloudflared(executable: string): Promise<boolean> {
-  return await file_matches_sha256(executable, CLOUDFLARED_SHA256) &&
-    await probe_executable_version(executable, CLOUDFLARED_VERSION);
+async function verifiedCloudflared(executable: string): Promise<boolean> {
+  return await fileMatchesSha256(executable, CLOUDFLARED_SHA256) &&
+    await probeExecutableVersion(executable, CLOUDFLARED_VERSION);
 }
 
-async function stop_process(child: ChildProcess): Promise<void> {
+async function stopProcess(child: ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return;
   await new Promise<void>((resolve) => {
     const timeout = setTimeout(() => {

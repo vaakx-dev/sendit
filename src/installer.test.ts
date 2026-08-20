@@ -5,7 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const root = new URL("../", import.meta.url);
-const installer_url = new URL("install.ps1", root);
+const installerUrl = new URL("install.ps1", root);
 
 test("installer checks native failures and restores the working directory", async () => {
   const installer = await readFile(new URL("install.ps1", root), "utf8");
@@ -17,7 +17,7 @@ test("installer checks native failures and restores the working directory", asyn
 });
 
 test("native command failures throw under Windows PowerShell 5.1", { skip: process.platform !== "win32" }, () => {
-  const path = fileURLToPath(installer_url).replaceAll("'", "''");
+  const path = fileURLToPath(installerUrl).replaceAll("'", "''");
   const command = [
     `. '${path}'`,
     "try {",
@@ -38,6 +38,6 @@ test("native command failures throw under Windows PowerShell 5.1", { skip: proce
 
 test("VRUI lock resolution uses HTTPS", async () => {
   const lock = await readFile(new URL("package-lock.json", root), "utf8");
-  assert.match(lock, /git\+https:\/\/github\.com\/vaakx-dev\/vrui\.git#5b5b23b5ae3cb1981866024a924bb68ea0466ba2/);
+  assert.match(lock, /git\+https:\/\/github\.com\/vaakx-dev\/vrui\.git#2d6ba0edcfc33eb8d80d479dd06d77322181d058/);
   assert.doesNotMatch(lock, /git\+ssh:\/\/git@github\.com\/vaakx-dev\/vrui/);
 });

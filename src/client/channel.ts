@@ -1,6 +1,7 @@
 import { listen } from "@vaakx-dev/vrui";
 import {
-  parse_server_message,
+  parseServerMessage,
+  serializeSenderMessage,
   type SenderToServerMessage,
 } from "../protocol.js";
 import type { SelectedFile, Selection } from "./selection.js";
@@ -30,7 +31,7 @@ interface Transfer {
   id: string;
   selected: SelectedFile;
   sent: number;
-  phase: "streaming" | "waiting_complete";
+  phase: "streaming" | "waitingComplete";
   reader: ReadableStreamDefaultReader<Uint8Array> | null;
   acknowledgement: PendingAcknowledgement | null;
 }
@@ -45,10 +46,10 @@ export class SenderChannel {
     private readonly notify: (event: ChannelEvent) => void,
     socket?: SenderChannelSocket,
   ) {
-    this.socket = socket ?? create_socket(key);
+    this.socket = socket ?? createSocket(key);
     listen(this.socket, "open", () => this.notify({ type: "connected" }));
     listen(this.socket, "close", () => {
-      this.abort_transfer(new Error("SendIt disconnected."));
+      this.abortTransfer(new Error("SendIt disconnected."));
       this.notify({ type: "disconnected" });
     });
     listen(this.socket, "message", (event) => {
@@ -64,7 +65,7 @@ export class SenderChannel {
       items: records.map((record) => ({
         id: record.id,
         name: record.file.name,
-        relative_path: record.path,
+        relativePath: record.path,
         size: record.file.size,
         type: record.file.type || "application/octet-stream",
       })),
@@ -73,7 +74,7 @@ export class SenderChannel {
 
   private receive(event: MessageEvent): void {
     if (typeof event.data !== "string") return;
-    const message = parse_server_message(event.data);
+    const message = parseServerMessage(event.data);
     if (!message) {
       this.notify({ type: "error", message: "SendIt received an invalid server message." });
       return;
@@ -87,23 +88,23 @@ export class SenderChannel {
         this.notify({ type: "published", url: message.url });
         return;
       case "transfer_request":
-        void this.stream(message.transfer_id, message.item_id);
+        void this.stream(message.transferId, message.itemId);
         return;
       case "chunk_ack":
-        if (transfer?.id === message.transfer_id && transfer.acknowledgement) {
+        if (transfer?.id === message.transferId && transfer.acknowledgement) {
           const acknowledgement = transfer.acknowledgement;
           transfer.acknowledgement = null;
           acknowledgement.resolve();
         }
         return;
       case "transfer_cancel":
-        if (transfer?.id === message.transfer_id) {
-          this.abort_transfer(new Error(message.message || "Download cancelled."));
+        if (transfer?.id === message.transferId) {
+          this.abortTransfer(new Error(message.message || "Download cancelled."));
           this.notify({ type: "error", message: message.message || "Download cancelled." });
         }
         return;
       case "transfer_complete":
-        if (transfer?.id === message.transfer_id) {
+        if (transfer?.id === message.transferId) {
           this.transfer = null;
           this.notify({ type: "complete", file: transfer.selected.file });
         }
@@ -116,16 +117,16 @@ export class SenderChannel {
     return unhandled;
   }
 
-  private async stream(transfer_id: string, item_id: string): Promise<void> {
-    const selected = this.selection.get(item_id);
+  private async stream(transferId: string, itemId: string): Promise<void> {
+    const selected = this.selection.get(itemId);
     if (!selected || this.transfer) {
-      this.send({ type: "transfer_error", transfer_id, message: "The selected file is unavailable." });
+      this.send({ type: "transfer_error", transferId, message: "The selected file is unavailable." });
       return;
     }
 
     const reader = selected.file.stream().getReader();
     const transfer: Transfer = {
-      id: transfer_id,
+      id: transferId,
       selected,
       sent: 0,
       phase: "streaming",
@@ -135,27 +136,27 @@ export class SenderChannel {
     this.transfer = transfer;
 
     try {
-      this.send({ type: "transfer_begin", transfer_id, size: selected.file.size });
+      this.send({ type: "transfer_begin", transferId, size: selected.file.size });
       while (this.transfer === transfer) {
         const result = await reader.read();
         if (result.done || this.transfer !== transfer) break;
         for (let offset = 0; offset < result.value.byteLength; offset += CHUNK_SIZE) {
           if (this.transfer !== transfer) return;
           const chunk = result.value.subarray(offset, offset + CHUNK_SIZE);
-          await this.send_chunk(transfer, chunk);
+          await this.sendChunk(transfer, chunk);
           transfer.sent += chunk.byteLength;
           this.notify({ type: "progress", file: selected.file, sent: transfer.sent });
         }
       }
       if (this.transfer !== transfer) return;
-      transfer.phase = "waiting_complete";
+      transfer.phase = "waitingComplete";
       transfer.reader = null;
-      this.send({ type: "transfer_end", transfer_id });
+      this.send({ type: "transfer_end", transferId });
     } catch (error) {
       if (this.transfer !== transfer) return;
       this.transfer = null;
       const message = error instanceof Error ? error.message : "Could not read the file.";
-      this.send({ type: "transfer_error", transfer_id, message });
+      this.send({ type: "transfer_error", transferId, message });
       this.notify({ type: "error", message });
     } finally {
       if (transfer.reader === reader) transfer.reader = null;
@@ -163,7 +164,7 @@ export class SenderChannel {
     }
   }
 
-  private send_chunk(transfer: Transfer, chunk: Uint8Array): Promise<void> {
+  private sendChunk(transfer: Transfer, chunk: Uint8Array): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.socket.readyState !== OPEN || this.transfer !== transfer || transfer.phase !== "streaming") {
         reject(new Error("SendIt disconnected."));
@@ -176,7 +177,7 @@ export class SenderChannel {
     });
   }
 
-  private abort_transfer(error: Error): void {
+  private abortTransfer(error: Error): void {
     const transfer = this.transfer;
     if (!transfer) return;
     this.transfer = null;
@@ -193,11 +194,11 @@ export class SenderChannel {
       this.notify({ type: "error", message: "SendIt disconnected." });
       return;
     }
-    this.socket.send(JSON.stringify(message));
+    this.socket.send(serializeSenderMessage(message));
   }
 }
 
-function create_socket(key: string): WebSocket {
+function createSocket(key: string): WebSocket {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   return new WebSocket(`${protocol}//${location.host}/ws/sender?key=${encodeURIComponent(key)}`);
 }

@@ -1,4 +1,4 @@
-export function format_bytes(value: number): string {
+export function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`;
   const units = ["KB", "MB", "GB", "TB"];
   let size = value;

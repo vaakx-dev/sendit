@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Writable } from "node:stream";
+import { serializeServerMessage } from "./protocol.js";
 import type {
   SenderTransferMessage,
   ServerToSenderMessage,
@@ -16,7 +17,7 @@ export interface SenderSocket {
 }
 
 export interface SenderConnectionOptions {
-  idle_timeout_ms?: number;
+  idleTimeoutMs?: number;
 }
 
 interface ActiveTransfer {
@@ -24,23 +25,23 @@ interface ActiveTransfer {
   item: SharedItem;
   sink: Writable;
   written: number;
-  phase: "waiting_begin" | "receiving";
-  write_pending: boolean;
+  phase: "waitingBegin" | "receiving";
+  writePending: boolean;
   timeout: ReturnType<typeof setTimeout> | null;
-  on_sink_error: ((error: Error) => void) | null;
+  onSinkError: ((error: Error) => void) | null;
   resolve: () => void;
   reject: (error: Error) => void;
-  on_progress: (written: number, total: number) => void;
+  onProgress: (written: number, total: number) => void;
 }
 
 export class SenderConnection {
   private socket: SenderSocket | null = null;
   private active: ActiveTransfer | null = null;
-  private readonly idle_timeout_ms: number;
+  private readonly idleTimeoutMs: number;
 
   constructor(options: SenderConnectionOptions = {}) {
-    this.idle_timeout_ms = options.idle_timeout_ms ?? DEFAULT_IDLE_TIMEOUT_MS;
-    if (!Number.isSafeInteger(this.idle_timeout_ms) || this.idle_timeout_ms <= 0) {
+    this.idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+    if (!Number.isSafeInteger(this.idleTimeoutMs) || this.idleTimeoutMs <= 0) {
       throw new Error("Transfer idle timeout must be a positive integer.");
     }
   }
@@ -58,28 +59,28 @@ export class SenderConnection {
     this.socket = null;
   }
 
-  disconnect_socket(socket: SenderSocket, error = new Error("Sender disconnected.")): void {
+  disconnectSocket(socket: SenderSocket, error = new Error("Sender disconnected.")): void {
     if (this.socket !== socket) return;
     this.disconnect(error);
   }
 
-  is_connected(): boolean {
+  isConnected(): boolean {
     return this.socket?.readyState === OPEN;
   }
 
-  is_busy(): boolean {
+  isBusy(): boolean {
     return this.active !== null;
   }
 
   send(message: ServerToSenderMessage): void {
     if (!this.socket || this.socket.readyState !== OPEN) return;
-    this.socket.send(JSON.stringify(message));
+    this.socket.send(serializeServerMessage(message));
   }
 
   request(
     item: SharedItem,
     sink: Writable,
-    on_progress: (written: number, total: number) => void,
+    onProgress: (written: number, total: number) => void,
   ): Promise<void> {
     if (!this.socket || this.socket.readyState !== OPEN) {
       return Promise.reject(new Error("The sender is offline."));
@@ -95,35 +96,35 @@ export class SenderConnection {
         item,
         sink,
         written: 0,
-        phase: "waiting_begin",
-        write_pending: false,
+        phase: "waitingBegin",
+        writePending: false,
         timeout: null,
-        on_sink_error: null,
+        onSinkError: null,
         resolve,
         reject,
-        on_progress,
+        onProgress,
       };
-      const on_sink_error = (error: Error) => this.fail(active, error);
-      active.on_sink_error = on_sink_error;
-      sink.once("error", on_sink_error);
+      const onSinkError = (error: Error) => this.fail(active, error);
+      active.onSinkError = onSinkError;
+      sink.once("error", onSinkError);
       this.active = active;
-      this.refresh_timeout(active);
-      this.send({ type: "transfer_request", transfer_id: id, item_id: item.id });
+      this.refreshTimeout(active);
+      this.send({ type: "transfer_request", transferId: id, itemId: item.id });
     });
   }
 
-  handle_message(message: SenderTransferMessage): void {
+  handleMessage(message: SenderTransferMessage): void {
     const active = this.active;
-    if (!active || message.transfer_id !== active.id) return;
+    if (!active || message.transferId !== active.id) return;
 
     switch (message.type) {
       case "transfer_begin":
-        if (active.phase !== "waiting_begin" || message.size !== active.item.size) {
+        if (active.phase !== "waitingBegin" || message.size !== active.item.size) {
           this.fail(active, new Error("The selected file changed before the download started."));
           return;
         }
         active.phase = "receiving";
-        this.refresh_timeout(active);
+        this.refreshTimeout(active);
         return;
       case "transfer_end":
         if (active.phase !== "receiving" || active.written !== active.item.size) {
@@ -140,7 +141,7 @@ export class SenderConnection {
     return unhandled;
   }
 
-  handle_chunk(chunk: Buffer): void {
+  handleChunk(chunk: Buffer): void {
     const active = this.active;
     if (!active) return;
     if (active.phase !== "receiving") {
@@ -152,23 +153,23 @@ export class SenderConnection {
       return;
     }
 
-    this.refresh_timeout(active);
-    active.write_pending = true;
+    this.refreshTimeout(active);
+    active.writePending = true;
     try {
       active.sink.write(chunk, (error) => {
-        active.write_pending = false;
+        active.writePending = false;
         if (error) return;
         if (this.active !== active) {
-          if (active.on_sink_error) active.sink.off("error", active.on_sink_error);
+          if (active.onSinkError) active.sink.off("error", active.onSinkError);
           return;
         }
         active.written += chunk.length;
-        active.on_progress(active.written, active.item.size);
-        this.refresh_timeout(active);
-        this.send({ type: "chunk_ack", transfer_id: active.id });
+        active.onProgress(active.written, active.item.size);
+        this.refreshTimeout(active);
+        this.send({ type: "chunk_ack", transferId: active.id });
       });
     } catch (error) {
-      active.write_pending = false;
+      active.writePending = false;
       this.fail(active, error instanceof Error ? error : new Error("The recipient stream failed."));
     }
   }
@@ -181,28 +182,28 @@ export class SenderConnection {
   private complete(active: ActiveTransfer): void {
     if (!this.release(active)) return;
     active.resolve();
-    this.send({ type: "transfer_complete", transfer_id: active.id });
+    this.send({ type: "transfer_complete", transferId: active.id });
   }
 
   private fail(active: ActiveTransfer, error: Error): void {
     if (!this.release(active)) return;
     active.reject(error);
-    this.send({ type: "transfer_cancel", transfer_id: active.id, message: error.message });
+    this.send({ type: "transfer_cancel", transferId: active.id, message: error.message });
   }
 
   private release(active: ActiveTransfer): boolean {
     if (this.active !== active) return false;
     this.active = null;
     if (active.timeout) clearTimeout(active.timeout);
-    if (!active.write_pending && active.on_sink_error) active.sink.off("error", active.on_sink_error);
+    if (!active.writePending && active.onSinkError) active.sink.off("error", active.onSinkError);
     return true;
   }
 
-  private refresh_timeout(active: ActiveTransfer): void {
+  private refreshTimeout(active: ActiveTransfer): void {
     if (this.active !== active) return;
     if (active.timeout) clearTimeout(active.timeout);
     active.timeout = setTimeout(() => {
       this.fail(active, new Error("The sender stopped responding."));
-    }, this.idle_timeout_ms);
+    }, this.idleTimeoutMs);
   }
 }

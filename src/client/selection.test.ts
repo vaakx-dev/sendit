@@ -11,7 +11,7 @@ function file(path: string, content = "x"): File {
 
 test("gitignore matches are excluded by default and can be selected again", async () => {
   const selection = new Selection();
-  await selection.set_files([
+  await selection.setFiles([
     file("project/.gitignore", "node_modules/\n*.log\n.env\n!keep.log\n"),
     file("project/src/index.ts"),
     file("project/node_modules/package/index.js"),
@@ -31,7 +31,7 @@ test("gitignore matches are excluded by default and can be selected again", asyn
 
 test("nested gitignore files apply relative to their directory", async () => {
   const selection = new Selection();
-  await selection.set_files([
+  await selection.setFiles([
     file("project/.gitignore", "dist/\n"),
     file("project/packages/app/.gitignore", "generated/\n"),
     file("project/packages/app/generated/data.ts"),
@@ -46,16 +46,16 @@ test("nested gitignore files apply relative to their directory", async () => {
 });
 
 test("nested gitignore precedence does not depend on file enumeration order", async () => {
-  const root_ignore = file("project/.gitignore", "!sub/secret.txt\n");
-  const nested_ignore = file("project/sub/.gitignore", "secret.txt\n");
+  const rootIgnore = file("project/.gitignore", "!sub/secret.txt\n");
+  const nestedIgnore = file("project/sub/.gitignore", "secret.txt\n");
   const secret = file("project/sub/secret.txt");
 
   for (const files of [
-    [root_ignore, nested_ignore, secret],
-    [nested_ignore, root_ignore, secret],
+    [rootIgnore, nestedIgnore, secret],
+    [nestedIgnore, rootIgnore, secret],
   ]) {
     const selection = new Selection();
-    await selection.set_files(files);
+    await selection.setFiles(files);
     assert.equal(selection.included().some((record) => record.path === "project/sub/secret.txt"), false);
   }
 });
@@ -65,17 +65,17 @@ test("folder entries summarize and toggle thousands of files", async () => {
   const files = Array.from({ length: 5_000 }, (_, index) =>
     file(`project/src/group-${index % 20}/file-${index}.txt`, `${index}`),
   );
-  await selection.set_files(files);
+  await selection.setFiles(files);
 
   const root = selection.entries("project");
   assert.deepEqual(root.map((entry) => entry.name), ["src"]);
-  assert.equal(root[0]?.file_count, 5_000);
-  assert.equal(root[0]?.selected_count, 5_000);
+  assert.equal(root[0]?.fileCount, 5_000);
+  assert.equal(root[0]?.selectedCount, 5_000);
 
   selection.select("project/src/group-7", false);
   const source = selection.entries("project/src");
   const excluded = source.find((entry) => entry.name === "group-7");
-  assert.equal(excluded?.file_count, 250);
-  assert.equal(excluded?.selected_count, 0);
+  assert.equal(excluded?.fileCount, 250);
+  assert.equal(excluded?.selectedCount, 0);
   assert.equal(selection.included().length, 4_750);
 });

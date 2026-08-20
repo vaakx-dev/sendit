@@ -8,17 +8,17 @@ export const HEADERS = {
   "X-Frame-Options": "DENY",
 };
 
-export function send_text(response: ServerResponse, status: number, body: string): void {
+export function sendText(response: ServerResponse, status: number, body: string): void {
   response.writeHead(status, { ...HEADERS, "Content-Type": "text/plain; charset=utf-8" });
   response.end(body);
 }
 
-export function send_json(response: ServerResponse, status: number, body: unknown): void {
+export function sendJson(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { ...HEADERS, "Content-Type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(body));
 }
 
-export function content_disposition(filename: string): string {
+export function contentDisposition(filename: string): string {
   const fallback = filename
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
     .replace(/[^\x20-\x7e]/g, "_")

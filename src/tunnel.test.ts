@@ -8,10 +8,10 @@ import {
   CLOUDFLARED_DOWNLOAD_URL,
   CLOUDFLARED_SHA256,
   CLOUDFLARED_VERSION,
-  extract_tunnel_url,
-  file_matches_sha256,
-  monitor_tunnel_process,
-  probe_executable_version,
+  extractTunnelUrl,
+  fileMatchesSha256,
+  monitorTunnelProcess,
+  probeExecutableVersion,
 } from "./tunnel.js";
 
 test("cloudflared release is pinned with a SHA-256 digest", () => {
@@ -28,16 +28,16 @@ test("checks cached file content against the pinned digest", async (context) => 
   await writeFile(file, "hello");
 
   assert.equal(
-    await file_matches_sha256(file, "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"),
+    await fileMatchesSha256(file, "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"),
     true,
   );
-  assert.equal(await file_matches_sha256(file, "0".repeat(64)), false);
-  assert.equal(await file_matches_sha256(join(directory, "missing.exe"), CLOUDFLARED_SHA256), false);
+  assert.equal(await fileMatchesSha256(file, "0".repeat(64)), false);
+  assert.equal(await fileMatchesSha256(join(directory, "missing.exe"), CLOUDFLARED_SHA256), false);
 });
 
 test("probes an executable version without starting a tunnel", async () => {
-  assert.equal(await probe_executable_version(process.execPath, process.version), true);
-  assert.equal(await probe_executable_version(process.execPath, "not-a-node-version"), false);
+  assert.equal(await probeExecutableVersion(process.execPath, process.version), true);
+  assert.equal(await probeExecutableVersion(process.execPath, "not-a-node-version"), false);
 });
 
 test("reports tunnel failure after readiness", async () => {
@@ -45,7 +45,7 @@ test("reports tunnel failure after readiness", async () => {
     "-e",
     "console.error('https://focused-test.trycloudflare.com'); setTimeout(() => process.exit(7), 20)",
   ], { stdio: ["ignore", "pipe", "pipe"] });
-  const tunnel = await monitor_tunnel_process(child, 1_000);
+  const tunnel = await monitorTunnelProcess(child, 1_000);
 
   assert.equal(tunnel.url, "https://focused-test.trycloudflare.com");
   const closed = await tunnel.closed;
@@ -58,7 +58,7 @@ test("reports intentional process completion without a failure", async () => {
     "-e",
     "console.error('https://focused-stop.trycloudflare.com'); setInterval(() => {}, 1000)",
   ], { stdio: ["ignore", "pipe", "pipe"] });
-  const tunnel = await monitor_tunnel_process(child, 1_000);
+  const tunnel = await monitorTunnelProcess(child, 1_000);
 
   await tunnel.stop();
   assert.deepEqual(await tunnel.closed, { type: "stopped" });
@@ -69,13 +69,13 @@ test("rejects a tunnel process that exits before readiness", async () => {
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  await assert.rejects(monitor_tunnel_process(child, 1_000), /exit 3/);
+  await assert.rejects(monitorTunnelProcess(child, 1_000), /exit 3/);
 });
 
 test("extracts only Cloudflare quick tunnel URLs", () => {
   assert.equal(
-    extract_tunnel_url("INF +https://quiet-field-123.trycloudflare.com ready"),
+    extractTunnelUrl("INF +https://quiet-field-123.trycloudflare.com ready"),
     "https://quiet-field-123.trycloudflare.com",
   );
-  assert.equal(extract_tunnel_url("https://example.com"), null);
+  assert.equal(extractTunnelUrl("https://example.com"), null);
 });

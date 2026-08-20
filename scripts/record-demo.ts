@@ -6,15 +6,15 @@ import WebSocket from "ws";
 
 // Use the compiled server: it serves the bundled web assets from dist/src/web/.
 // (Run `npm run build` first if dist is stale.)
-interface SenditServer {
+interface SendItServer {
   port: number;
-  admin_key: string;
-  admin_url: string;
-  set_public_url(url: string): void;
+  adminKey: string;
+  adminUrl: string;
+  setPublicUrl(url: string): void;
   close(): Promise<void>;
 }
-const { start_sendit_server } = await import("../dist/src/server.js") as {
-  start_sendit_server(options?: { port?: number; public_url?: string }): Promise<SenditServer>;
+const { startSendItServer } = await import("../dist/src/server.js") as {
+  startSendItServer(options?: { port?: number; publicUrl?: string }): Promise<SendItServer>;
 };
 
 const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
@@ -34,7 +34,7 @@ interface CdpResponse { id: number; result?: Record<string, unknown>; error?: { 
 
 class Cdp {
   private socket!: WebSocket;
-  private next_id = 1;
+  private nextId = 1;
   private pending = new Map<number, { resolve: (v: Record<string, unknown>) => void; reject: (e: Error) => void }>();
 
   async connect(port: number): Promise<void> {
@@ -62,14 +62,14 @@ class Cdp {
   }
 
   send(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<Record<string, unknown>> {
-    const id = this.next_id++;
+    const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       this.socket.send(JSON.stringify({ id, method, params, sessionId }));
     });
   }
 
-  async open_tab(url: string): Promise<string> {
+  async openTab(url: string): Promise<string> {
     const { targetId } = await this.send("Target.createTarget", { url: "about:blank" }) as { targetId: string };
     const { sessionId } = await this.send("Target.attachToTarget", { targetId, flatten: true }) as { sessionId: string };
     await this.send("Page.enable", {}, sessionId);
@@ -83,8 +83,8 @@ class Cdp {
     return result.value;
   }
 
-  async wait_for(sessionId: string, expression: string, timeout_ms = 8000): Promise<unknown> {
-    const deadline = Date.now() + timeout_ms;
+  async waitFor(sessionId: string, expression: string, timeoutMs = 8000): Promise<unknown> {
+    const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       const value = await this.evaluate(sessionId, expression);
       if (value) return value;
@@ -103,12 +103,12 @@ class Cdp {
 
 function sleep(ms: number): Promise<void> { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
-let frame_number = 0;
-async function shot(cdp: Cdp, session: string, count = 1, gap_ms = 650): Promise<void> {
+let frameNumber = 0;
+async function shot(cdp: Cdp, session: string, count = 1, gapMs = 650): Promise<void> {
   for (let i = 0; i < count; i += 1) {
-    frame_number += 1;
-    await cdp.capture(session, path.join(FRAMES, `frame-${String(frame_number).padStart(3, "0")}.jpg`));
-    if (i < count - 1) await sleep(gap_ms);
+    frameNumber += 1;
+    await cdp.capture(session, path.join(FRAMES, `frame-${String(frameNumber).padStart(3, "0")}.jpg`));
+    if (i < count - 1) await sleep(gapMs);
   }
 }
 
@@ -121,8 +121,8 @@ async function main(): Promise<void> {
     await writeFile(path.join(FILES_DIR, name), content);
   }
 
-  const server: SenditServer = await start_sendit_server({});
-  server.set_public_url(`http://127.0.0.1:${server.port}`);
+  const server: SendItServer = await startSendItServer({});
+  server.setPublicUrl(`http://127.0.0.1:${server.port}`);
   console.log(`server on ${server.port}`);
 
   const chrome: ChildProcess = spawn(CHROME, [
@@ -141,9 +141,9 @@ async function main(): Promise<void> {
     await cdp.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: DOWNLOADS });
 
     // Scene 1 — sender drop zone
-    const sender = await cdp.open_tab(server.admin_url);
-    await cdp.wait_for(sender, `document.querySelector(".drop-zone") !== null`);
-    await cdp.wait_for(sender, `[...document.querySelectorAll("header,nav,div")].some(n => n.textContent?.trim() === "Ready") || document.body.textContent.includes("Ready")`);
+    const sender = await cdp.openTab(server.adminUrl);
+    await cdp.waitFor(sender, `document.querySelector(".drop-zone") !== null`);
+    await cdp.waitFor(sender, `[...document.querySelectorAll("header,nav,div")].some(n => n.textContent?.trim() === "Ready") || document.body.textContent.includes("Ready")`);
     await sleep(600);
     await shot(cdp, sender, 3);
 
@@ -154,21 +154,21 @@ async function main(): Promise<void> {
       nodeId,
       files: Object.keys(DEMO_FILES).map((name) => path.join(FILES_DIR, name)),
     }, sender);
-    await cdp.wait_for(sender, `document.body.textContent.includes("Ready to share")`);
+    await cdp.waitFor(sender, `document.body.textContent.includes("Ready to share")`);
     await sleep(400);
     await shot(cdp, sender, 3);
 
     // Scene 3 — create the link
     await cdp.evaluate(sender, `[...document.querySelectorAll("button")].find(b => b.textContent.includes("Create sharing link"))?.click()`);
-    await cdp.wait_for(sender, `(document.querySelector("input[aria-label='Sharing link']")?.value ?? "").startsWith("http")`);
+    await cdp.waitFor(sender, `(document.querySelector("input[aria-label='Sharing link']")?.value ?? "").startsWith("http")`);
     await sleep(700);
     await shot(cdp, sender, 3);
-    const share_url = String(await cdp.evaluate(sender, `document.querySelector("input[aria-label='Sharing link']")?.value`));
-    console.log(`share url: ${share_url}`);
+    const shareUrl = String(await cdp.evaluate(sender, `document.querySelector("input[aria-label='Sharing link']")?.value`));
+    console.log(`share url: ${shareUrl}`);
 
     // Scene 4 — receiver view
-    const receiver = await cdp.open_tab(share_url);
-    await cdp.wait_for(receiver, `document.body.textContent.includes("Sender online") && document.body.textContent.includes("Download everything as ZIP")`);
+    const receiver = await cdp.openTab(shareUrl);
+    await cdp.waitFor(receiver, `document.body.textContent.includes("Sender online") && document.body.textContent.includes("Download everything as ZIP")`);
     await sleep(500);
     await shot(cdp, receiver, 4);
 
@@ -178,13 +178,13 @@ async function main(): Promise<void> {
     await shot(cdp, receiver, 2);
 
     // Scene 6 — sender sees the completed transfer
-    await cdp.wait_for(sender, `document.body.textContent.includes("Transfer complete")`);
+    await cdp.waitFor(sender, `document.body.textContent.includes("Transfer complete")`);
     await sleep(400);
     await shot(cdp, sender, 3);
-    frame_number += 1; // hold on the final frame a little longer (duplicated in GIF step)
-    await cdp.capture(sender, path.join(FRAMES, `frame-${String(frame_number).padStart(3, "0")}.jpg`));
+    frameNumber += 1; // hold on the final frame a little longer (duplicated in GIF step)
+    await cdp.capture(sender, path.join(FRAMES, `frame-${String(frameNumber).padStart(3, "0")}.jpg`));
 
-    console.log(`captured ${frame_number} frames`);
+    console.log(`captured ${frameNumber} frames`);
   } finally {
     cdp.close();
     chrome.kill();
