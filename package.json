@@ -1,10 +1,10 @@
 {
   "name": "sendit",
   "version": "0.1.0",
-  "description": "Share files from the command line through a temporary public link",
+  "description": "Temporary file sharing from a Windows PC",
   "type": "module",
   "bin": {
-    "sendit": "dist/cli.js"
+    "sendit": "dist/src/cli.js"
   },
   "files": [
     "dist",
@@ -12,10 +12,12 @@
     "LICENSE"
   ],
   "scripts": {
-    "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
-    "build": "npm run clean && tsc",
-    "start": "node dist/cli.js",
-    "bench": "tsx scripts/bench.ts"
+    "build": "tsx scripts/clean.ts && tsc && tsc -p tsconfig.client.json && tsx scripts/build_assets.ts",
+    "dev": "npm run build && node dist/src/cli.js --local",
+    "start": "node dist/src/cli.js",
+    "test": "npm run build && tsx --test src/protocol.test.ts src/transfer.test.ts src/tunnel.test.ts src/installer.test.ts src/server.test.ts src/client/channel.test.ts src/client/selection.test.ts",
+    "test:stress": "npm run build && tsx --test --test-concurrency=1 src/client/selection.stress.test.ts src/server.stress.test.ts",
+    "test:speed": "npm run build && tsx scripts/speed_test.ts"
   },
   "engines": {
     "node": ">=22"
@@ -24,12 +26,17 @@
     "win32"
   ],
   "dependencies": {
+    "@vaakx-dev/vrui": "git+https://github.com/vaakx-dev/vrui.git#5b5b23b5ae3cb1981866024a924bb68ea0466ba2",
     "archiver": "8.0.0",
-    "ignore": "^7.0.5"
+    "ignore": "^7.0.5",
+    "lucide": "1.28.0",
+    "ws": "8.21.1"
   },
   "devDependencies": {
     "@types/archiver": "8.0.0",
     "@types/node": "26.1.2",
+    "@types/ws": "8.18.1",
+    "esbuild": "0.28.1",
     "tsx": "4.20.6",
     "typescript": "7.0.2"
   },

@@ -1,15 +1,23 @@
 {
   "compilerOptions": {
-    "target": "ES2024",
+    "target": "ES2023",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "dist",
-    "types": ["node"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
-    "skipLibCheck": true
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "sourceMap": true
   },
-  "include": ["src"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/client/**/*.ts",
+    "src/**/*.test.ts"
+  ]
 }
