@@ -1,61 +1,52 @@
 import { randomBytes } from "node:crypto";
-import type { PublishMessage, SharedItems, ShareDetails } from "./protocol.js";
+import type { ShareDetails, SharedItem } from "./shared/protocol.js";
 
 export interface Share {
-  token: string;
-  label: string;
-  items: SharedItems;
-  created_at: string;
+  readonly token: string;
+  readonly label: string;
+  readonly items: readonly SharedItem[];
+  readonly createdAt: Date;
 }
 
-export function create_share(message: PublishMessage): Share {
-  const sanitized = message.items.map((item) => ({
-    ...item,
-    name: clean_name(item.name),
-    relative_path: clean_path(item.relative_path),
-  }));
-  const [first, ...rest] = sanitized;
-  if (!first) throw new Error("Select at least one file.");
-  const items: SharedItems = [first, ...rest];
+const UNSAFE_NAME_CHARACTERS = /[\u0000-\u001f<>:"/\\|?*]/g;
+const CONTROL_CHARACTERS = /[\u0000-\u001f]/g;
 
-  if (new Set(items.map((item) => item.id)).size !== items.length) {
-    throw new Error("File identifiers must be unique.");
-  }
-  if (new Set(items.map((item) => item.relative_path)).size !== items.length) {
-    throw new Error("File paths must be unique.");
-  }
-
+export function createShare(label: string, items: readonly SharedItem[]): Share {
   return {
     token: randomBytes(24).toString("base64url"),
-    label: clean_name(message.label),
-    items,
-    created_at: new Date().toISOString(),
+    label: cleanName(label),
+    items: items.map(({ id, relativePath, size }) => ({ id, relativePath: cleanPath(relativePath), size })),
+    createdAt: new Date(),
   };
 }
 
-export function share_details(share: Share, sender_online: boolean): ShareDetails {
+export function describeShare(share: Share, senderOnline: boolean): ShareDetails {
   return {
     label: share.label,
-    created_at: share.created_at,
-    sender_online,
-    total_size: share.items.reduce((total, item) => total + item.size, 0),
-    items: share.items,
+    createdAt: share.createdAt.toISOString(),
+    senderOnline,
+    totalSize: totalSize(share.items),
+    items: [...share.items],
   };
 }
 
-export function archive_name(share: Share): string {
-  return `${clean_name(share.label) || "sendit-files"}.zip`;
+export function totalSize(items: readonly SharedItem[]): number {
+  return items.reduce((total, item) => total + item.size, 0);
 }
 
-function clean_name(value: string): string {
-  return value.replace(/[\u0000-\u001f<>:"/\\|?*]/g, "-").trim().slice(0, 200) || "Shared files";
+export function fileName(item: SharedItem): string {
+  return item.relativePath.slice(item.relativePath.lastIndexOf("/") + 1);
 }
 
-function clean_path(value: string): string {
-  return value
+function cleanName(value: string): string {
+  return value.replace(UNSAFE_NAME_CHARACTERS, "-").trim().slice(0, 200) || "Shared files";
+}
+
+function cleanPath(value: string): string {
+  const segments = value
     .replaceAll("\\", "/")
     .split("/")
-    .filter((part) => part && part !== "." && part !== "..")
-    .map((part) => part.replace(/[\u0000-\u001f]/g, ""))
-    .join("/") || "file";
+    .filter((segment) => segment && segment !== "." && segment !== "..")
+    .map((segment) => segment.replace(CONTROL_CHARACTERS, ""));
+  return segments.join("/") || "file";
 }

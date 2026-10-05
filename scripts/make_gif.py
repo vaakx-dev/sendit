@@ -1,4 +1,3 @@
-"""Assemble recorded frames into an optimized looping GIF."""
 from pathlib import Path
 
 from PIL import Image

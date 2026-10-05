@@ -3,14 +3,10 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "types": [],
     "noEmit": true
   },
-  "include": [
-    "src/client/**/*.ts"
-  ],
-  "exclude": [
-    "src/client/**/*.test.ts"
-  ]
+  "include": ["src/client", "src/shared"],
+  "exclude": []
 }

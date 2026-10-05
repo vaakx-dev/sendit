@@ -48,7 +48,6 @@ button, input { font: inherit; }
 .receiver-shell { width: min(760px, calc(100% - 32px)); }
 .sender-shell { width: min(1040px, calc(100% - 32px)); }
 
-/* ---------- top bar: status + theme toggle, no branding ---------- */
 
 .topbar {
   display: flex;
@@ -86,7 +85,6 @@ button, input { font: inherit; }
 
 .theme-toggle:hover { color: var(--text); border-color: var(--border-strong); }
 
-/* ---------- hero ---------- */
 
 .hero { margin-bottom: 16px; }
 .hero h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.14em; }
@@ -100,7 +98,6 @@ button, input { font: inherit; }
   text-transform: uppercase;
 }
 
-/* ---------- drop zone & panels ---------- */
 
 .drop-zone, .panel {
   border: 1px solid var(--border);
@@ -140,7 +137,6 @@ button, input { font: inherit; }
 .drop-zone > p { margin: 8px 0 24px; color: var(--muted); font-size: 14px; }
 .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 
-/* ---------- buttons ---------- */
 
 .button {
   display: inline-flex;
@@ -166,7 +162,6 @@ button, input { font: inherit; }
 .button.secondary:hover { border-color: var(--muted); }
 .button.wide { width: 100%; margin-top: 20px; }
 
-/* ---------- panels ---------- */
 
 .panel { margin-top: 12px; padding: 18px; }
 .panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
@@ -175,7 +170,6 @@ button, input { font: inherit; }
 .text-button { padding: 4px; border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 13px; }
 .text-button:hover { color: var(--text); }
 
-/* ---------- file lists ---------- */
 
 .file-list { display: grid; }
 .file-row {
@@ -207,7 +201,6 @@ button, input { font: inherit; }
 }
 .summary strong { color: var(--text); font-weight: 500; }
 
-/* ---------- link row ---------- */
 
 .link-row { display: flex; gap: 8px; margin-top: 16px; }
 .link-row input {
@@ -226,19 +219,16 @@ button, input { font: inherit; }
 .link-row input:focus { border-color: var(--border-strong); }
 .hint { margin: 14px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 
-/* ---------- progress ---------- */
 
 .progress-track { height: 6px; overflow: hidden; border-radius: 2px; background: var(--surface-raised); }
 .progress-bar { width: 0; height: 100%; border-radius: inherit; background: var(--text); transition: width 120ms linear; }
 
-/* ---------- misc ---------- */
 
 .receiver-list { margin-bottom: 16px; }
 .download-all { margin-top: 0; }
 .error { padding: 13px 15px; margin-top: 16px; border: 1px solid var(--danger); border-radius: 6px; color: var(--danger); font-size: 14px; }
 .hidden { display: none !important; }
 
-/* ---------- compact sender workspace ---------- */
 
 .sender-workspace {
   display: grid;
@@ -325,7 +315,6 @@ button.entry-name { cursor: pointer; }
 .transfer-line strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .transfer-line span { color: var(--muted); font-family: var(--mono); }
 
-/* ---------- receiver primary action ---------- */
 
 .receiver-summary { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
 .receiver-summary h2 { margin-top: 5px; }
