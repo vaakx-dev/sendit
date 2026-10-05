@@ -1,6 +1,6 @@
 # SendIt
 
-Temporary file sharing from a Windows PC. Files stream from the sender's browser while the recipient downloads. The link dies with the process.
+Temporary file sharing from a Windows PC. Pick files in the browser, or share them straight from the command line. Files stream while the recipient downloads, and the link dies with the process.
 
 The browser interface is built with [VRUI](https://github.com/vaakx-dev/vrui), another one of my projects.
 
@@ -11,7 +11,7 @@ The browser interface is built with [VRUI](https://github.com/vaakx-dev/vrui), a
 - Windows 10 or 11
 - Node.js 22 or newer
 
-The first public run downloads `cloudflared` 2026.8.2 into `%LOCALAPPDATA%\sendit\bin`. SendIt verifies the release SHA-256 hash and executable version before use.
+The first public run downloads `cloudflared` 2026.8.2 into `%LOCALAPPDATA%\sendit\bin`. SendIt verifies its SHA-256 hash on every run.
 
 ## Install
 
@@ -33,11 +33,40 @@ npm install --global .
 
 ## Use
 
+### In the browser
+
 ```powershell
 sendit
 ```
 
 Select files or a folder on the control page, create the link, and keep the window open until the download finishes. `Ctrl+C` stops sharing.
+
+### From the command line
+
+```powershell
+sendit report.pdf           # share one file
+sendit .\project            # share a folder as project.zip
+sendit notes.md .\photos    # share several things as one ZIP
+sendit report.pdf --once    # exit after the first download
+```
+
+SendIt prints the download link once it works. One file downloads as itself; anything else downloads as a ZIP. Folders skip `.git` and anything matched by a `.gitignore`. Recipients can also open the share page, which is printed alongside the link.
+
+| Option        | Effect                                                 |
+| ------------- | ------------------------------------------------------ |
+| `--once`      | Exit after the first completed download                |
+| `--no-open`   | Do not open the browser                                |
+| `--local`     | Serve on `127.0.0.1` only, without a public tunnel     |
+| `--port <n>`  | Use a fixed local port                                 |
+| `--uninstall` | Remove the cloudflared helper and SendIt data          |
+
+### From scripts and agents
+
+Command-line sharing writes exactly one line to stdout: the download link, once it is reachable. Everything else goes to stderr. With `--once`, SendIt exits with code 0 after the first completed download. Errors exit with code 1.
+
+```bash
+sendit build.zip --once > link.txt &   # link.txt fills in when the link is live
+```
 
 ## Uninstall
 
@@ -49,25 +78,32 @@ npm uninstall --global sendit   # removes the sendit command
 ## Development
 
 ```powershell
-npm run dev          # build and run locally, no public tunnel
-npm test             # quick correctness checks
-npm run test:stress  # 2+ GiB and 100,000-file checks
-npm run test:speed   # local upload/download throughput
+npm run dev             # build and open the browser mode locally, no public tunnel
+npm run bench           # local throughput: disk, ZIP, and the browser protocol
+npm run bench -- 4096   # same, with a 4 GiB file
+npm run demo            # record the README GIF with headless Chrome
 ```
 
-The speed test transfers 1 GiB by default without storing it. To choose another size:
-
-```powershell
-$env:SENDIT_SPEED_MIB=4096; npm run test:speed
+```text
+src/
+  cli.ts              options, then browser mode or command-line mode
+  output.ts           terminal output
+  share.ts            the share model
+  modes/              interactive (browser) and headless (command line) flows
+  server/             HTTP routes, downloads, static assets
+  sources/            where file bytes come from: the browser or the disk
+  tunnel/             cloudflared and the quick tunnel
+  shared/             protocol types and formatting used by server and browser
+  client/             the browser pages
 ```
 
 ## How it works
 
 ```text
-sender browser -> local SendIt process -> Cloudflare Quick Tunnel -> recipient browser
+sender browser or disk -> local SendIt process -> Cloudflare Quick Tunnel -> recipient
 ```
 
-Chunks stream one at a time with backpressure. Folder downloads are zipped as they stream, never staged on disk. SendIt cancels a transfer after 30 seconds without progress.
+Browser uploads stream one chunk at a time with backpressure. ZIP downloads are built as they stream and never staged on disk. A browser transfer is cancelled after 30 seconds without progress.
 
 ## Security
 

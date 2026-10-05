@@ -1,207 +1,176 @@
 import ignore, { type Ignore } from "ignore";
 
 export interface SelectedFile {
-  id: string;
-  file: File;
-  path: string;
+  readonly id: string;
+  readonly file: File;
+  readonly path: string;
   selected: boolean;
-  ignored: boolean;
 }
 
 export interface SelectionEntry {
-  path: string;
-  name: string;
-  directory: boolean;
-  file_count: number;
-  selected_count: number;
-  size: number;
+  readonly path: string;
+  readonly name: string;
+  readonly isDirectory: boolean;
+  readonly fileCount: number;
+  readonly selectedCount: number;
+  readonly size: number;
 }
 
-interface LocalEntry {
-  name: string;
-  isFile: boolean;
-  isDirectory: boolean;
-}
-
-interface FileEntry extends LocalEntry {
-  file(success: (file: File) => void, failure: (error: DOMException) => void): void;
-}
-
-interface DirectoryReader {
-  readEntries(success: (entries: LocalEntry[]) => void, failure: (error: DOMException) => void): void;
-}
-
-interface DirectoryEntry extends LocalEntry {
-  createReader(): DirectoryReader;
+interface PickedFile {
+  readonly file: File;
+  readonly path: string;
 }
 
 interface IgnoreFile {
-  directory: string;
-  depth: number;
-  rules: Ignore;
+  readonly directory: string;
+  readonly depth: number;
+  readonly rules: Ignore;
 }
 
 export class Selection {
-  private records = new Map<string, SelectedFile>();
+  private readonly files = new Map<string, SelectedFile>();
 
-  async set_files(files: File[]): Promise<void> {
-    await this.set(files.map((file) => ({ file, path: file.webkitRelativePath || file.name })));
+  async setFiles(files: readonly File[]): Promise<void> {
+    await this.replace(files.map((file) => ({ file, path: file.webkitRelativePath || file.name })));
   }
 
-  async set_drop(items: DataTransferItemList, files: FileList): Promise<void> {
-    const entries = [...items]
-      .map((item) => item.webkitGetAsEntry?.() as unknown as LocalEntry | null)
-      .filter((entry): entry is LocalEntry => entry !== null);
+  async setDrop(transfer: DataTransfer): Promise<void> {
+    const entries = [...transfer.items].map((item) => item.webkitGetAsEntry()).filter((entry) => entry !== null);
+    if (!entries.some((entry) => entry.isDirectory)) return this.setFiles([...transfer.files]);
 
-    if (!entries.some((entry) => entry.isDirectory)) {
-      await this.set_files([...files]);
-      return;
-    }
-
-    const found: Array<{ file: File; path: string }> = [];
-    for (const entry of entries) await read_entry(entry, "", found);
-    await this.set(found);
+    const picked: PickedFile[] = [];
+    for (const entry of entries) await readEntry(entry, "", picked);
+    await this.replace(picked);
   }
 
   clear(): void {
-    this.records.clear();
+    this.files.clear();
   }
 
   all(): SelectedFile[] {
-    return [...this.records.values()];
+    return [...this.files.values()];
   }
 
   included(): SelectedFile[] {
-    return this.all().filter((record) => record.selected);
+    return this.all().filter((file) => file.selected);
   }
 
   get(id: string): SelectedFile | undefined {
-    return this.records.get(id);
+    return this.files.get(id);
   }
 
   root(): string {
-    return common_root(this.all().map((record) => record.path));
+    return commonRoot(this.all().map((file) => file.path));
   }
 
   label(): string {
-    const records = this.included();
-    const root = common_root(records.map((record) => record.path));
+    const included = this.included();
+    const root = commonRoot(included.map((file) => file.path));
+    const [only, ...others] = included;
     if (root) return root;
-    if (records.length === 1) return records[0]?.file.name ?? "Shared file";
-    return `${records.length} shared files`;
+    if (only && others.length === 0) return only.file.name;
+    return `${included.length} shared files`;
   }
 
   entries(directory: string): SelectionEntry[] {
-    const entries = new Map<string, SelectionEntry>();
     const prefix = directory ? `${directory}/` : "";
+    const entries = new Map<string, SelectionEntry>();
 
-    for (const record of this.records.values()) {
-      if (!record.path.startsWith(prefix)) continue;
-      const relative = record.path.slice(prefix.length);
-      if (!relative) continue;
-      const slash = relative.indexOf("/");
-      const name = slash < 0 ? relative : relative.slice(0, slash);
+    for (const file of this.files.values()) {
+      if (!file.path.startsWith(prefix) || file.path === prefix) continue;
+      const [name = "", ...rest] = file.path.slice(prefix.length).split("/");
       const path = prefix + name;
-      const current = entries.get(path) ?? {
+      const entry = entries.get(path);
+      entries.set(path, {
         path,
         name,
-        directory: slash >= 0,
-        file_count: 0,
-        selected_count: 0,
-        size: 0,
-      };
-      current.directory ||= slash >= 0;
-      current.file_count += 1;
-      current.size += record.file.size;
-      if (record.selected) {
-        current.selected_count += 1;
-      }
-      entries.set(path, current);
+        isDirectory: (entry?.isDirectory ?? false) || rest.length > 0,
+        fileCount: (entry?.fileCount ?? 0) + 1,
+        selectedCount: (entry?.selectedCount ?? 0) + Number(file.selected),
+        size: (entry?.size ?? 0) + file.file.size,
+      });
     }
 
     return [...entries.values()].sort((left, right) =>
-      Number(right.directory) - Number(left.directory) || left.name.localeCompare(right.name),
+      Number(right.isDirectory) - Number(left.isDirectory) || left.name.localeCompare(right.name),
     );
   }
 
   select(path: string, selected: boolean): void {
-    const prefix = `${path}/`;
-    for (const record of this.records.values()) {
-      if (record.path === path || record.path.startsWith(prefix)) record.selected = selected;
+    for (const file of this.files.values()) {
+      if (file.path === path || file.path.startsWith(`${path}/`)) file.selected = selected;
     }
   }
 
-  private async set(records: Array<{ file: File; path: string }>): Promise<void> {
-    this.records.clear();
-    const ignore_files = await load_ignore_files(records);
-
-    for (const record of records) {
-      const path = normalize_path(record.path);
-      const ignored = is_ignored(path, ignore_files);
+  private async replace(picked: readonly PickedFile[]): Promise<void> {
+    const ignoreFiles = await loadIgnoreFiles(picked);
+    this.files.clear();
+    for (const { file, path } of picked) {
+      const normalized = normalizePath(path);
       const id = crypto.randomUUID();
-      this.records.set(id, { id, file: record.file, path, selected: !ignored, ignored });
+      this.files.set(id, { id, file, path: normalized, selected: !isIgnored(normalized, ignoreFiles) });
     }
   }
 }
 
-async function load_ignore_files(records: Array<{ file: File; path: string }>): Promise<IgnoreFile[]> {
-  const files = records.filter((record) => normalize_path(record.path).split("/").at(-1) === ".gitignore");
-  const ignore_files = await Promise.all(files.map(async (record) => {
-    const path = normalize_path(record.path);
-    const slash = path.lastIndexOf("/");
-    const directory = slash < 0 ? "" : path.slice(0, slash);
-    return {
-      directory,
-      depth: directory ? directory.split("/").length : 0,
-      rules: ignore().add(await record.file.text()),
-    };
+async function loadIgnoreFiles(picked: readonly PickedFile[]): Promise<IgnoreFile[]> {
+  const gitignores = picked.filter(({ path }) => normalizePath(path).split("/").at(-1) === ".gitignore");
+  const ignoreFiles = await Promise.all(gitignores.map(async ({ file, path }) => {
+    const normalized = normalizePath(path);
+    const slash = normalized.lastIndexOf("/");
+    const directory = slash < 0 ? "" : normalized.slice(0, slash);
+    return { directory, depth: directory ? directory.split("/").length : 0, rules: ignore().add(await file.text()) };
   }));
-  return ignore_files.sort((left, right) =>
-    left.depth - right.depth || left.directory.localeCompare(right.directory),
-  );
+  return ignoreFiles.sort((left, right) => left.depth - right.depth || left.directory.localeCompare(right.directory));
 }
 
-function is_ignored(path: string, files: IgnoreFile[]): boolean {
+function isIgnored(path: string, ignoreFiles: readonly IgnoreFile[]): boolean {
   let ignored = false;
-  for (const file of files) {
-    const prefix = file.directory ? `${file.directory}/` : "";
+  for (const { directory, rules } of ignoreFiles) {
+    const prefix = directory ? `${directory}/` : "";
     if (!path.startsWith(prefix)) continue;
-    const relative = path.slice(prefix.length);
-    if (!relative || relative === ".gitignore") continue;
-    const result = file.rules.test(relative);
+    const relativePath = path.slice(prefix.length);
+    if (!relativePath || relativePath === ".gitignore") continue;
+    const result = rules.test(relativePath);
     if (result.ignored) ignored = true;
     if (result.unignored) ignored = false;
   }
   return ignored;
 }
 
-async function read_entry(
-  entry: LocalEntry,
-  parent: string,
-  files: Array<{ file: File; path: string }>,
-): Promise<void> {
+async function readEntry(entry: FileSystemEntry, parent: string, picked: PickedFile[]): Promise<void> {
   const path = parent ? `${parent}/${entry.name}` : entry.name;
-  if (entry.isFile) {
-    const file_entry = entry as FileEntry;
-    const file = await new Promise<File>((resolve, reject) => file_entry.file(resolve, reject));
-    files.push({ file, path });
+  if (isFileEntry(entry)) {
+    picked.push({ file: await new Promise<File>((resolve, reject) => entry.file(resolve, reject)), path });
     return;
   }
+  if (!isDirectoryEntry(entry)) return;
 
-  const reader = (entry as DirectoryEntry).createReader();
-  while (true) {
-    const children = await new Promise<LocalEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
-    if (children.length === 0) return;
-    for (const child of children) await read_entry(child, path, files);
+  const reader = entry.createReader();
+  for (let batch = await readBatch(reader); batch.length > 0; batch = await readBatch(reader)) {
+    for (const child of batch) await readEntry(child, path, picked);
   }
 }
 
-function normalize_path(path: string): string {
+function readBatch(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  return new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+}
+
+function isFileEntry(entry: FileSystemEntry): entry is FileSystemFileEntry {
+  return entry.isFile;
+}
+
+function isDirectoryEntry(entry: FileSystemEntry): entry is FileSystemDirectoryEntry {
+  return entry.isDirectory;
+}
+
+function normalizePath(path: string): string {
   return path.replaceAll("\\", "/").replace(/^\/+/, "");
 }
 
-function common_root(paths: string[]): string {
-  if (paths.length === 0 || paths.some((path) => !path.includes("/"))) return "";
-  const root = paths[0]?.split("/")[0] ?? "";
+function commonRoot(paths: readonly string[]): string {
+  const [first] = paths;
+  if (!first || paths.some((path) => !path.includes("/"))) return "";
+  const root = first.slice(0, first.indexOf("/"));
   return paths.every((path) => path.startsWith(`${root}/`)) ? root : "";
 }

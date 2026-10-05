@@ -4,7 +4,7 @@
   "description": "Temporary file sharing from a Windows PC",
   "type": "module",
   "bin": {
-    "sendit": "dist/src/cli.js"
+    "sendit": "dist/cli.js"
   },
   "files": [
     "dist",
@@ -12,12 +12,12 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsx scripts/clean.ts && tsc && tsc -p tsconfig.client.json && tsx scripts/build_assets.ts",
-    "dev": "npm run build && node dist/src/cli.js --local",
-    "start": "node dist/src/cli.js",
-    "test": "npm run build && tsx --test src/protocol.test.ts src/transfer.test.ts src/tunnel.test.ts src/installer.test.ts src/server.test.ts src/client/channel.test.ts src/client/selection.test.ts",
-    "test:stress": "npm run build && tsx --test --test-concurrency=1 src/client/selection.stress.test.ts src/server.stress.test.ts",
-    "test:speed": "npm run build && tsx scripts/speed_test.ts"
+    "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc && tsc -p tsconfig.client.json && tsx scripts/build-assets.ts",
+    "dev": "npm run build && node dist/cli.js --local",
+    "start": "node dist/cli.js",
+    "bench": "tsx scripts/bench.ts",
+    "demo": "npm run build && tsx scripts/record-demo.ts && python scripts/make_gif.py"
   },
   "engines": {
     "node": ">=22"
